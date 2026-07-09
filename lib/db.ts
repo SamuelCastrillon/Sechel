@@ -1,33 +1,33 @@
-import { Kysely } from 'kysely';
-import { LibsqlDialect } from 'kysely-libsql';
-import { createClient, type Client } from '@libsql/client';
-import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-import type { CortexDB, UserRow } from './db-types';
-import { runMigrations } from './migrations';
+import { Kysely } from "kysely";
+import { LibsqlDialect } from "kysely-libsql";
+import { createClient, type Client } from "@libsql/client";
+import { randomUUID } from "node:crypto";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import type { CortexDB, UserRow } from "./db-types";
+import { runMigrations } from "./migrations";
 
 /**
  * Single per-instance org id. NOT user-supplied. Scopes every query so a bug
  * cannot cross instance boundaries (defense-in-depth on top of per-project auth).
  */
 export function TENANT_ID(): string {
-  return process.env.CORTEXT_ORG_ID ?? 'default';
+  return process.env.CORTEXT_ORG_ID ?? "default";
 }
 
 // SLICE 1 DEV BYPASS (documented, not a silent no-op):
 // Real bearer -> users auth lands in Slice 3. For Slice 1 we seed one admin
 // account so the server is usable and parity tests pass. This is a constant
 // placeholder credential and MUST be replaced by real auth in Slice 3.
-export const DEV_ADMIN_USERNAME = 'dev-admin';
-export const DEV_ADMIN_CREDENTIAL_HASH = 'dev-bypass-not-for-production';
+export const DEV_ADMIN_USERNAME = "dev-admin";
+export const DEV_ADMIN_CREDENTIAL_HASH = "dev-bypass-not-for-production";
 
 function resolveUrl(): { url: string; token?: string } {
-  const url = process.env.TURSO_URL;
-  const token = process.env.TURSO_TOKEN;
+  const url = process.env.TURSO_DATABASE_URL;
+  const token = process.env.TURSO_AUTH_TOKEN;
   if (url) return { url, token };
   // Local dev default: ephemeral file DB so the app runs without Turso.
-  return { url: 'file:./.cortext-local.db' };
+  return { url: "file:./.cortext-local.db" };
 }
 
 export function createLibsqlClient(): Client {
