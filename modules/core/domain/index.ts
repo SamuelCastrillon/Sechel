@@ -6,3 +6,5 @@ export * from './store';
 export * from './validation';
 export * from './normalize';
 export * from './types';
+export * from './store-relations';
+export * from './store-admin';
