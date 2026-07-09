@@ -18,6 +18,12 @@ import { registerMemUpdate } from './tools/mem_update';
 import { registerMemDelete } from './tools/mem_delete';
 import { registerMemTimeline } from './tools/mem_timeline';
 import { registerMemContext } from './tools/mem_context';
+import { registerMemJudge } from './tools/mem_judge';
+import { registerMemCompare } from './tools/mem_compare';
+import { registerMemReview } from './tools/mem_review';
+import { registerMemDoctor } from './tools/mem_doctor';
+import { registerMemMergeProjects } from './tools/mem_merge_projects';
+import { registerMemCapturePassive } from './tools/mem_capture_passive';
 
 export const handler = withMcpAuth(
   createMcpHandler(
@@ -39,6 +45,12 @@ export const handler = withMcpAuth(
       registerMemDelete(server);
       registerMemTimeline(server);
       registerMemContext(server);
+      registerMemJudge(server);
+      registerMemCompare(server);
+      registerMemReview(server);
+      registerMemDoctor(server);
+      registerMemMergeProjects(server);
+      registerMemCapturePassive(server);
     },
     {},
     { basePath: '/api' },

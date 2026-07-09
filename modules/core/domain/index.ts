@@ -4,6 +4,9 @@
 // are pulled in transitively by server code (mcp, route handlers).
 export * from './store';
 export * from './store-session';
+export * from './store-relations';
+export * from './store-admin';
+export * from './store-utils';
 export * from './validation';
 export * from './normalize';
 export * from './types';

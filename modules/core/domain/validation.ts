@@ -77,6 +77,9 @@ export const sessionEndSchema = z.object({
 });
 export type SessionEndInput = z.input<typeof sessionEndSchema>;
 
+export type SaveInput = z.input<typeof saveSchema>;
+export type SearchInput = z.input<typeof searchSchema>;
+
 // ---------------------------------------------------------------------------
 // P3 — Escritura media
 // ---------------------------------------------------------------------------
@@ -121,5 +124,57 @@ export const contextSchema = z.object({
 });
 export type ContextInput = z.input<typeof contextSchema>;
 
-export type SaveInput = z.input<typeof saveSchema>;
-export type SearchInput = z.input<typeof searchSchema>;
+// ---------------------------------------------------------------------------
+// P5 — Juicio
+// ---------------------------------------------------------------------------
+
+export const judgeSchema = z.object({
+  judgment_id: z.string().min(1),
+  relation: z.enum(['related', 'compatible', 'scoped', 'conflicts_with', 'supersedes', 'not_conflict']),
+  reason: z.string().optional(),
+  evidence: z.string().optional(),
+  confidence: z.number().min(0).max(1).optional().default(1.0),
+});
+export type JudgeInput = z.input<typeof judgeSchema>;
+
+export const compareSchema = z.object({
+  memory_id_a: z.number().int().positive(),
+  memory_id_b: z.number().int().positive(),
+  relation: z.enum(['related', 'compatible', 'scoped', 'conflicts_with', 'supersedes', 'not_conflict']),
+  confidence: z.number().min(0).max(1).optional().default(1.0),
+  reasoning: z.string().max(200).optional(),
+  model: z.string().optional(),
+});
+export type CompareInput = z.input<typeof compareSchema>;
+
+// ---------------------------------------------------------------------------
+// P6 — Administrativos
+// ---------------------------------------------------------------------------
+
+export const reviewSchema = z.object({
+  action: z.enum(['list', 'mark_reviewed']),
+  id: z.number().int().positive().optional(),
+  limit: z.number().int().min(1).max(100).optional().default(10),
+  project: z.string().nullable().optional(),
+});
+export type ReviewInput = z.input<typeof reviewSchema>;
+
+export const doctorSchema = z.object({
+  check: z.string().optional(),
+  project: z.string().nullable().optional(),
+});
+export type DoctorInput = z.input<typeof doctorSchema>;
+
+export const mergeProjectsSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+});
+export type MergeProjectsInput = z.input<typeof mergeProjectsSchema>;
+
+export const capturePassiveSchema = z.object({
+  content: z.string().min(1),
+  session_id: z.string().optional(),
+  project: z.string().nullable().optional(),
+  source: z.string().optional(),
+});
+export type CapturePassiveInput = z.input<typeof capturePassiveSchema>;
