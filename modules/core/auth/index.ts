@@ -1,8 +1,11 @@
+import 'server-only';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
-import type { CortexDB } from './db-types';
-import { getDb, DEV_ADMIN_USERNAME, DEV_ADMIN_CREDENTIAL_HASH, TENANT_ID } from './db';
+import type { CortexDB } from '../db/db-types';
+import { getDb, TENANT_ID } from '../db';
+import { DEV_ADMIN_USERNAME, DEV_ADMIN_CREDENTIAL_HASH } from '../db/seed';
+import { normalizeProject } from '../domain/normalize';
 
 export interface Actor {
   userId: number;
@@ -58,12 +61,6 @@ export function actorFromAuthInfo(authInfo?: AuthInfo): Actor | undefined {
     role: extra.role ?? 'member',
     username: extra.username ?? 'unknown',
   };
-}
-
-function normalizeProject(project: string | null | undefined): string | null {
-  if (project === null || project === undefined) return null;
-  const trimmed = project.trim().toLowerCase();
-  return trimmed.length === 0 ? null : trimmed;
 }
 
 /**

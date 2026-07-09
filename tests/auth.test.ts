@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createTestDb } from '@/lib/db';
-import { saveObservation, searchObservations } from '@/lib/store';
-import type { Actor } from '@/lib/auth';
+import { createTestDb } from '@/modules/core/db';
+import { saveObservation, searchObservations } from '@/modules/core/domain';
+import type { Actor } from '@/modules/core/auth';
 import type { Kysely } from 'kysely';
-import type { CortexDB } from '@/lib/db-types';
+import type { CortexDB } from '@/modules/core/db';
 
 let db: Kysely<CortexDB>;
 let admin: Actor;

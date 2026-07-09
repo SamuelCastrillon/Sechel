@@ -1,38 +1,20 @@
+import 'server-only';
 import { sql, type Kysely } from 'kysely';
 import { createHash, randomBytes } from 'node:crypto';
-import type { CortexDB, ObservationsTable } from './db-types';
-import { TENANT_ID } from './db';
-import { assertAuthorized, type Actor } from './auth';
-import type { SaveInput, SearchInput } from './validation';
+import type { CortexDB, ObservationsTable } from '../db/db-types';
+import { getDb, TENANT_ID } from '../db';
+import { assertAuthorized, type Actor } from '../auth';
+import { OBS_COLS, type Candidate, type SaveResult, type SearchResultRow } from './types';
+import { sanitizeFTS, sanitizeFTSCandidates } from './fts';
+import { normalizeProject } from './normalize';
+import { saveSchema, searchSchema, type SaveInput, type SearchInput } from './validation';
 
 // ---------------------------------------------------------------------------
 // Helpers (replicate upstream Engram behavior exactly for compatibility)
 // ---------------------------------------------------------------------------
 
-const OBS_COLS = `o.id, o.tenant_id, o.sync_id, o.session_id, o.type, o.title,
-  o.content, o.tool_name, o.project, o.scope, o.topic_key, o.revision_count,
-  o.duplicate_count, o.last_seen_at, o.pinned, o.review_after, o.created_at, o.updated_at`;
-
 function stripPrivate(text: string): string {
   return text.replace(/<private>[\s\S]*?<\/private>/g, '');
-}
-
-/** Verbatim port of upstream sanitizeFTS: wrap every word in double quotes. */
-export function sanitizeFTS(query: string): string {
-  const words = query.trim().split(/\s+/).filter(Boolean);
-  return words.map((w) => `"${w.replace(/"/g, '')}"`).join(' ');
-}
-
-/** OR semantics variant for match_mode='any': wrap words, join with OR. */
-export function sanitizeFTSCandidates(query: string): string {
-  const words = query.trim().split(/\s+/).filter(Boolean);
-  return words.map((w) => `"${w.replace(/"/g, '')}"`).join(' OR ');
-}
-
-function normalizeProject(project: string | null | undefined): string | null {
-  if (project === null || project === undefined) return null;
-  const trimmed = project.trim().toLowerCase();
-  return trimmed.length === 0 ? null : trimmed;
 }
 
 function hashContent(content: string): string {
@@ -72,19 +54,16 @@ async function getObservationById(
   return r.rows[0] ?? null;
 }
 
+// MCP tools resolve the app DB through this domain-level accessor instead of
+// importing `@/modules/core/db` directly (keeps data access singular in
+// core/domain per R2 — the db dependency lives here, not in modules/mcp).
+export async function resolveDb(): Promise<Kysely<CortexDB>> {
+  return getDb();
+}
+
 // ---------------------------------------------------------------------------
 // Conflict surfacing (FindCandidates) — runs after a fresh insert
 // ---------------------------------------------------------------------------
-
-export interface Candidate {
-  id: number;
-  sync_id: string;
-  title: string;
-  type: string;
-  topic_key: string | null;
-  score: number;
-  judgment_id?: string;
-}
 
 const BM25_FLOOR = -2.0; // default conflict floor
 
@@ -156,16 +135,6 @@ async function findCandidates(
 // ---------------------------------------------------------------------------
 // mem_save -> AddObservation (doc §3.1)
 // ---------------------------------------------------------------------------
-
-export interface SaveResult {
-  id: number;
-  sync_id: string;
-  action: 'inserted' | 'updated' | 'deduped';
-  revision_count: number;
-  duplicate_count: number;
-  judgment_required: boolean;
-  candidates: Candidate[];
-}
 
 export async function saveObservation(
   db: Kysely<CortexDB>,
@@ -313,28 +282,6 @@ export async function saveObservation(
 // ---------------------------------------------------------------------------
 // mem_search -> Search (doc §3.2)
 // ---------------------------------------------------------------------------
-
-export interface SearchResultRow {
-  id: number;
-  tenant_id: string;
-  sync_id: string | null;
-  session_id: string;
-  type: string;
-  title: string;
-  content: string;
-  tool_name: string | null;
-  project: string | null;
-  scope: string;
-  topic_key: string | null;
-  revision_count: number;
-  duplicate_count: number;
-  last_seen_at: string | null;
-  pinned: number;
-  review_after: string | null;
-  created_at: string;
-  updated_at: string;
-  rank: number;
-}
 
 export async function searchObservations(
   db: Kysely<CortexDB>,

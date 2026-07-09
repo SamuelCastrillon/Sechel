@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createTestDb } from '@/lib/db';
+import { createTestDb } from '@/modules/core/db';
 import type { Client } from '@libsql/client';
 
 let client: Client;
@@ -34,7 +34,7 @@ describe('migration — schema smoke', () => {
   });
 
   it('is idempotent: re-running migrations does not error or duplicate', async () => {
-    const { runMigrations } = await import('@/lib/migrations');
+    const { runMigrations } = await import('@/modules/core/db/migrations');
     await runMigrations(client); // second pass
     const res = await client.execute({ sql: `SELECT version FROM _migrations` });
     expect(res.rows.length).toBe(1);

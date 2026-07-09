@@ -1,8 +1,8 @@
 import { loadEnvConfig } from '@next/env';
 loadEnvConfig(process.cwd());
 
-import { createLibsqlClient } from '../lib/db';
-import { runMigrations } from '../lib/migrations';
+import { createLibsqlClient } from '@/modules/core/db';
+import { runMigrations } from '@/modules/core/db/migrations';
 
 async function main() {
   const client = createLibsqlClient();

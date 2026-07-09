@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(process.cwd()),
+      'server-only': path.resolve(process.cwd(), 'tests/server-only-shim.ts'),
     },
   },
 });

@@ -31,6 +31,7 @@ export interface ObservationsTable {
   created_at: ColumnType<string, string | undefined, string>;
   updated_at: ColumnType<string, string | undefined, string>;
   deleted_at: string | null;
+  review_after: string | null;
 }
 
 export interface UserPromptsTable {
