@@ -24,6 +24,59 @@ export const searchSchema = z.object({
   match_mode: z.enum(['all', 'any']).default('all'),
 });
 
+// ---------------------------------------------------------------------------
+// P1 — Lectura simple
+// ---------------------------------------------------------------------------
+
+export const getObservationSchema = z.object({
+  id: z.number().int().positive(),
+});
+export type GetObservationInput = z.input<typeof getObservationSchema>;
+
+export const statsSchema = z.object({});
+export type StatsInput = z.input<typeof statsSchema>;
+
+export const currentProjectSchema = z.object({
+  project: z.string().nullable().optional(),
+});
+export type CurrentProjectInput = z.input<typeof currentProjectSchema>;
+
+export const suggestTopicKeySchema = z.object({
+  title: z.string().min(1),
+  type: z.string().optional(),
+});
+export type SuggestTopicKeyInput = z.input<typeof suggestTopicKeySchema>;
+
+// ---------------------------------------------------------------------------
+// P2 — Escritura simple
+// ---------------------------------------------------------------------------
+
+export const pinSchema = z.object({
+  id: z.number().int().positive(),
+});
+export type PinInput = z.input<typeof pinSchema>;
+
+export const savePromptSchema = z.object({
+  content: z.string().min(1),
+  session_id: z.string().min(1),
+  project: z.string().nullable().optional(),
+  sync_id: z.string().nullable().optional(),
+});
+export type SavePromptInput = z.input<typeof savePromptSchema>;
+
+export const sessionStartSchema = z.object({
+  id: z.string().min(1),
+  project: z.string().min(1),
+  directory: z.string().optional().default('unknown'),
+});
+export type SessionStartInput = z.input<typeof sessionStartSchema>;
+
+export const sessionEndSchema = z.object({
+  id: z.string().min(1),
+  summary: z.string().nullable().optional(),
+});
+export type SessionEndInput = z.input<typeof sessionEndSchema>;
+
 export type SaveInput = z.input<typeof saveSchema>;
 export type SearchInput = z.input<typeof searchSchema>;
 

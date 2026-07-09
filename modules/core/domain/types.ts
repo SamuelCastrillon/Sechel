@@ -27,6 +27,52 @@ export interface SaveResult {
   candidates: Candidate[];
 }
 
+// ---------------------------------------------------------------------------
+// P1 — Lectura simple result types
+// ---------------------------------------------------------------------------
+
+export type GetObservationResult = import('../db/db-types').ObservationsTable | null;
+
+export interface StatsResult {
+  sessions: number;
+  observations: number;
+  prompts: number;
+  projects: string[];
+}
+
+export interface CurrentProjectResult {
+  project: string | null;
+  project_source: string;
+  project_path: string;
+  cwd: string;
+  available_projects: string[];
+}
+
+export interface SuggestTopicKeyResult {
+  topic_key: string;
+}
+
+// ---------------------------------------------------------------------------
+// P2 — Escritura simple result types
+// ---------------------------------------------------------------------------
+
+export interface PinResult {
+  success: boolean;
+}
+
+export interface SavePromptResult {
+  id: number;
+  sync_id: string;
+}
+
+export interface SessionStartResult {
+  id: string;
+}
+
+export interface SessionEndResult {
+  success: boolean;
+}
+
 export interface SearchResultRow {
   id: number;
   tenant_id: string;
@@ -50,7 +96,7 @@ export interface SearchResultRow {
 }
 
 // ---------------------------------------------------------------------------
-// P5 — Juicio
+// P5 — Juicio result types
 // ---------------------------------------------------------------------------
 
 export interface JudgeResult {
@@ -62,7 +108,7 @@ export interface CompareResult {
 }
 
 // ---------------------------------------------------------------------------
-// P6 — Administrativos
+// P6 — Administrativos result types
 // ---------------------------------------------------------------------------
 
 export interface DoctorResult {
