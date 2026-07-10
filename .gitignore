@@ -146,6 +146,6 @@ vite.config.ts.timestamp-*
 .atl/
 .vercel
 
-# CortextMCP local dev database (default libSQL file)
-.cortext-local.db
+# Sechel local dev database (default libSQL file)
+.sechel-local.db
 *.turso

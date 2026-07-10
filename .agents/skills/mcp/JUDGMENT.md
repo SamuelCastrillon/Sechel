@@ -1,7 +1,7 @@
 # JUDGMENT-DAY VERDICT — mcp
 
 VERDICT: PARTIAL-TRUST (2026-07-08)
-Applies to: CortextMCP (Next.js 15 App Router + `mcp-handler` Streamable HTTP)
+Applies to: Sechel (Next.js 15 App Router + `mcp-handler` Streamable HTTP)
 
 ## Trusted for (transport-agnostic)
 - Tool schema/input design (Zod/JSON-Schema, clear descriptions, enums).
@@ -14,7 +14,7 @@ Applies to: CortextMCP (Next.js 15 App Router + `mcp-handler` Streamable HTTP)
 - STDIO transport (`StdioServerTransport`, `claude_desktop_config.json`).
 - SSE / FastAPI HTTP server bootstrap.
 - Raw `@modelcontextprotocol/sdk` Server bootstrap in app/api/mcp/route.ts.
-CortextMCP uses `mcp-handler` for Streamable HTTP. Rewriting transport is OUT OF
+Sechel uses `mcp-handler` for Streamable HTTP. Rewriting transport is OUT OF
 SCOPE and risks regressions in working code. The immediate SDD work is schema +
 mem_* tools, NOT the MCP transport.
 

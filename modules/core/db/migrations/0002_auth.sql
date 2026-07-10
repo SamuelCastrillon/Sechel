@@ -1,4 +1,4 @@
--- CortextMCP Slice 3 auth schema: user_tokens, instance_settings, users.is_active.
+-- Sechel Slice 3 auth schema: user_tokens, instance_settings, users.is_active.
 -- Idempotent: every object uses IF NOT EXISTS / column existence check.
 
 CREATE TABLE IF NOT EXISTS user_tokens (
