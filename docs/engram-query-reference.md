@@ -1,10 +1,13 @@
 # Engram Query Reference — CortextMCP Cloud (single-org, project-scoped)
 
+> Portions of this document are derived from Engram's internal store layer.
+> © 2026 Alan Buscaglia — MIT License
+> https://github.com/Gentleman-Programming/engram
+
 This document is the authoritative reference for the SQL behavior of the 20 `mem_*`
 MCP tools exposed by the CortextMCP cloud server. It is derived from the upstream
-Engram `internal/store/store.go` and `internal/store/relations.go` (fork
-SamuelCastrillon/engram) so tool behavior stays 100% compatible for any MCP-HTTP
-agent.
+Engram `internal/store/store.go` and `internal/store/relations.go` so tool behavior
+stays 100% compatible for any MCP-HTTP agent.
 
 > **Structural model (read this first).** CortextMCP is an **open-source, self-hosted**
 > tool. Each deployment serves **one organization/team/person** — there is no

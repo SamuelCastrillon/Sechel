@@ -2,7 +2,7 @@
 
 Servidor MCP en la nube para memorias persistentes de agentes de IA, 100%
 compatible con la API de herramientas `mem_*` de
-[Engram](https://github.com/SamuelCastrillon/engram).
+[Engram](https://github.com/Gentleman-Programming/engram).
 
 Los agentes (Claude Code, OpenCode, Cursor, Gemini CLI, etc.) que soporten
 **MCP over HTTP** pueden apuntar a CortextMCP y usar las mismas herramientas
@@ -102,21 +102,68 @@ No se requiere stdin/stdio: los agentes se conectan por HTTP al endpoint
 
 ---
 
-## Cómo apuntar un agente a CortextMCP
+## Configuración en OpenCode
 
-Los agentes con soporte de MCP-over-HTTP usan la URL del servidor (no el binario
-local de Engram). Ejemplo de configuración en el cliente MCP del agente:
+CortextMCP puede configurarse de dos formas en OpenCode, según lo que necesites.
+
+### Modo Engram-compatible (reemplazo directo)
+
+Las herramientas `mem_*` de Engram se llaman con prefijo `engram_` (ej.
+`engram_mem_save`). Para que los agentes usen CortextMCP sin cambiar ni una línea
+de código, reemplazá el servidor `engram` en la **configuración global**
+(`~/.config/opencode/opencode.json`):
 
 ```json
 {
-  "mcpServers": {
-    "cortextmcp": {
+  "mcp": {
+    "engram": {
+      "type": "remote",
       "url": "https://<tu-despliegue>.vercel.app/api/mcp",
-      "headers": { "Authorization": "Bearer <tu-token>" }
+      "headers": {
+        "Authorization": "Bearer <tu-token>"
+      }
     }
   }
 }
 ```
+
+Los agentes siguen llamando a `engram_mem_save`, `engram_mem_search`, etc. —
+CortextMCP responde en el mismo formato que Engram. No se necesita cambiar nada
+en las instrucciones de los agentes ni en skills existentes.
+
+### Modo servidor separado (Cortext como MCP aparte)
+
+Si querés tener **Engram local** y **CortextMCP** como dos servidores distintos
+(por ejemplo durante una migración), agregalo con otro nombre en cualquier
+`opencode.json` (proyecto o global):
+
+```json
+{
+  "mcp": {
+    "cortext": {
+      "type": "remote",
+      "url": "https://<tu-despliegue>.vercel.app/api/mcp",
+      "headers": {
+        "Authorization": "Bearer <tu-token>"
+      }
+    }
+  }
+}
+```
+
+En este modo los agentes ven las herramientas con prefijo `cortext_` en lugar de
+`engram_` (`cortext_mem_save`, `cortext_mem_search`, …). Necesitás indicarles
+explícitamente que usen ese nombre en lugar del original.
+
+### Global vs. proyecto
+
+| Configuración | Dónde | Efecto |
+|---|---|---|
+| Global | `~/.config/opencode/opencode.json` | Afecta a todos los proyectos |
+| Proyecto | `<proyecto>/opencode.json` | Solo afecta a ese proyecto (se mergea con la global) |
+
+OpenCode mergea ambas configuraciones: lo que pongas en la global aplica a todos
+los proyectos, y podés overridear por proyecto si es necesario.
 
 > **Migrar desde Engram local:** mantené Engram y CortextMCP como dos MCP
 > separados en la misma sesión del agente, y pedile que copie las memorias que
@@ -154,7 +201,16 @@ docs/
 
 ---
 
-## Referencia
+## Atribución y licencia
+
+CortextMCP es un proyecto original con licencia **MIT**. No contiene código fuente
+de Engram, pero la especificación de queries en
+[`docs/engram-query-reference.md`](docs/engram-query-reference.md) está derivada
+del store interno de Engram para mantener compatibilidad 100% de herramientas.
+
+- [Engram](https://github.com/Gentleman-Programming/engram) — © 2026 Alan Buscaglia (MIT)
+- [CortextMCP](LICENSE) — © 2026 samcasdev (MIT)
+
+### Referencia
 
 - API de herramientas y queries: [`docs/engram-query-reference.md`](docs/engram-query-reference.md)
-- Inspiración: [SamuelCastrillon/engram](https://github.com/SamuelCastrillon/engram)
