@@ -148,4 +148,6 @@ vite.config.ts.timestamp-*
 
 # Sechel local dev database (default libSQL file)
 .sechel-local.db
+# Legacy name during migration — keep while old env vars exist
+.cortext-local.db
 *.turso
