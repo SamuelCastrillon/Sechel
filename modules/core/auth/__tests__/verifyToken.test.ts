@@ -12,6 +12,7 @@ describe('verifyToken — integration with real DB', () => {
 
   beforeEach(async () => {
     process.env = { ...OLD_ENV };
+    delete process.env.SECHEL_DEV_TOKEN;
     delete process.env.CORTEXT_DEV_TOKEN;
     delete process.env.ADMIN_USERNAME;
     delete process.env.ADMIN_PASSWORD;
@@ -94,8 +95,8 @@ describe('verifyToken — dev bypass', () => {
     process.env = { ...OLD_ENV };
   });
 
-  it('dev bypass active when CORTEXT_DEV_TOKEN is set', async () => {
-    process.env.CORTEXT_DEV_TOKEN = 'mydevpass';
+  it('dev bypass active when SECHEL_DEV_TOKEN is set', async () => {
+    process.env.SECHEL_DEV_TOKEN = 'mydevpass';
     const t = await createTestDb();
     db = t.db;
     const { verifyToken } = await import('../index');
@@ -105,7 +106,8 @@ describe('verifyToken — dev bypass', () => {
     expect((authInfo!.extra as Record<string, unknown>).role).toBe('admin');
   });
 
-  it('dev bypass OFF when CORTEXT_DEV_TOKEN is unset', async () => {
+  it('dev bypass OFF when SECHEL_DEV_TOKEN is unset', async () => {
+    delete process.env.SECHEL_DEV_TOKEN;
     delete process.env.CORTEXT_DEV_TOKEN;
     const t = await createTestDb();
     db = t.db;
@@ -115,8 +117,8 @@ describe('verifyToken — dev bypass', () => {
     expect(authInfo).toBeUndefined();
   });
 
-  it('dev bypass OFF when CORTEXT_DEV_TOKEN is empty', async () => {
-    process.env.CORTEXT_DEV_TOKEN = '';
+  it('dev bypass OFF when SECHEL_DEV_TOKEN is empty', async () => {
+    process.env.SECHEL_DEV_TOKEN = '';
     const t = await createTestDb();
     db = t.db;
     const { verifyToken } = await import('../index');
@@ -126,7 +128,7 @@ describe('verifyToken — dev bypass', () => {
   });
 
   it('dev bypass with wrong token returns undefined', async () => {
-    process.env.CORTEXT_DEV_TOKEN = 'mydevpass';
+    process.env.SECHEL_DEV_TOKEN = 'mydevpass';
     const t = await createTestDb();
     db = t.db;
     const { verifyToken } = await import('../index');
@@ -145,7 +147,7 @@ describe('seedAdmin — idempotent bootstrap', () => {
     const { tmpdir } = await import('node:os');
     const { randomUUID } = await import('node:crypto');
 
-    const url = `file:${join(tmpdir(), `cortext-test-bootstrap-${randomUUID()}.turso`)}`;
+    const url = `file:${join(tmpdir(), `sechel-test-bootstrap-${randomUUID()}.turso`)}`;
     const testClient = createClient({ url });
     await runMigrations(testClient);
 
@@ -167,7 +169,7 @@ describe('seedAdmin — idempotent bootstrap', () => {
     const { tmpdir } = await import('node:os');
     const { randomUUID } = await import('node:crypto');
 
-    const url = `file:${join(tmpdir(), `cortext-test-upsert-${randomUUID()}.turso`)}`;
+    const url = `file:${join(tmpdir(), `sechel-test-upsert-${randomUUID()}.turso`)}`;
     const testClient = createClient({ url });
     await runMigrations(testClient);
 

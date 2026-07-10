@@ -4,6 +4,7 @@ import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { CortexDB } from '../db/db-types';
 import { getDb, TENANT_ID } from '../db';
+import { getEnv } from '../db/env';
 import { normalizeProject } from '../domain/normalize';
 import { hashToken } from './tokens';
 
@@ -18,7 +19,7 @@ export type RequiredLevel = 'read' | 'write';
 /**
  * Verify a bearer token.
  *
- * 1. If CORTEXT_DEV_TOKEN is explicitly set and non-empty, match against it directly.
+ * 1. If SECHEL_DEV_TOKEN (or legacy CORTEXT_DEV_TOKEN) is explicitly set and non-empty, match against it directly.
  * 2. Otherwise, compute SHA-256 of the bearer token and look up in user_tokens.
  * 3. The associated user must have is_active = 1.
  *
@@ -35,8 +36,8 @@ export async function verifyToken(
 
   const db = testDb ?? await getDb();
 
-  // Step 1: Dev bypass (only when CORTEXT_DEV_TOKEN is explicitly set to non-empty)
-  const devToken = process.env.CORTEXT_DEV_TOKEN;
+  // Step 1: Dev bypass (only when SECHEL_DEV_TOKEN (or legacy CORTEXT_DEV_TOKEN) is explicitly set to non-empty)
+  const devToken = getEnv('SECHEL_DEV_TOKEN', 'CORTEXT_DEV_TOKEN');
   if (devToken && devToken.length > 0 && bearerToken === devToken) {
     const res = await sql<{ id: number; role: string; username: string }>`
       SELECT id, role, username FROM users
