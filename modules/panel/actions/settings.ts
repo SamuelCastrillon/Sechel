@@ -3,14 +3,7 @@
 import { type Client } from '@libsql/client';
 import { withAdmin } from '@/modules/panel/auth';
 import type { ActionResult } from '@/modules/panel/auth';
-
-/**
- * Known setting keys that are allowed to be set.
- * Add new keys here as they are introduced.
- */
-export const ALLOWED_SETTING_KEYS = ['registration_enabled'] as const;
-
-export type AllowedSettingKey = (typeof ALLOWED_SETTING_KEYS)[number];
+import { ALLOWED_SETTING_KEYS, type AllowedSettingKey } from './settings-constants';
 
 // ── Internal helpers (exported for testability) ──────────────────
 
