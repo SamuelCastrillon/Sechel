@@ -14,7 +14,7 @@ export async function listTokensInternal(client: Client, tenantId: string): Prom
           FROM user_tokens WHERE tenant_id = ? ORDER BY created_at DESC`,
     args: [tenantId],
   });
-  return result.rows.map((r) => r as Record<string, unknown>);
+  return result.rows.map((r) => ({ ...r }));
 }
 
 export interface CreateTokenResult {

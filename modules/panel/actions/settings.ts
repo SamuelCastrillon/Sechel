@@ -18,7 +18,7 @@ export async function getSettingsInternal(client: Client): Promise<unknown[]> {
   const result = await client.execute({
     sql: `SELECT key, value, updated_at FROM instance_settings ORDER BY key`,
   });
-  return result.rows.map((r) => r as Record<string, unknown>);
+  return result.rows.map((r) => ({ ...r }));
 }
 
 export async function getSettingInternal(client: Client, key: string): Promise<unknown | null> {
@@ -26,7 +26,7 @@ export async function getSettingInternal(client: Client, key: string): Promise<u
     sql: `SELECT key, value, updated_at FROM instance_settings WHERE key = ?`,
     args: [key],
   });
-  return result.rows.length > 0 ? (result.rows[0] as Record<string, unknown>) : null;
+  return result.rows.length > 0 ? { ...(result.rows[0] as Record<string, unknown>) } : null;
 }
 
 export async function setSettingInternal(client: Client, key: string, value: string): Promise<void> {

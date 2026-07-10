@@ -14,7 +14,7 @@ export async function listUsersInternal(client: Client, tenantId: string): Promi
           FROM users WHERE tenant_id = ? ORDER BY username`,
     args: [tenantId],
   });
-  return result.rows.map((r) => r as Record<string, unknown>);
+  return result.rows.map((r) => ({ ...r }));
 }
 
 export async function createUserInternal(
