@@ -1,50 +1,29 @@
 @import "tailwindcss";
-@config "../../tailwind.config.ts";
+@config "../tailwind.config.ts";
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 270 70% 50%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 270 70% 50%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 270 70% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 270 70% 60%;
+    /* Sechel Design System — Dark, Terminal-Inspired Cyber-Brutalist */
+    --background: 0 0% 5%;            /* #0c0c0c */
+    --foreground: 275 24% 90%;       /* #e7e0ec */
+    --card: 263 18% 9%;              /* #15121a */
+    --card-foreground: 275 24% 90%;  /* #e7e0ec */
+    --popover: 263 18% 9%;           /* #15121a */
+    --popover-foreground: 275 24% 90%; /* #e7e0ec */
+    --primary: 261 100% 87%;         /* #d3bbff — links, highlights */
+    --primary-foreground: 0 0% 100%; /* #ffffff — text on primary fill */
+    --secondary: 30 4% 78%;          /* #ccc5c1 — warm gray */
+    --secondary-foreground: 0 0% 5%; /* #0c0c0c */
+    --muted: 0 0% 10%;               /* #1a1a1a */
+    --muted-foreground: 0 0% 67%;    /* #acabaa */
+    --accent: 263 69% 42%;           /* #5b21b6 — deep purple fills */
+    --accent-foreground: 261 100% 87%; /* #d3bbff */
+    --destructive: 349 90% 71%;      /* #f97386 */
+    --destructive-foreground: 0 0% 5%; /* #0c0c0c */
+    --border: 0 0% 28%;              /* #484848 */
+    --input: 0 0% 28%;               /* #484848 */
+    --ring: 263 69% 42%;             /* #5b21b6 */
+    --radius: 0rem;
   }
 }
 

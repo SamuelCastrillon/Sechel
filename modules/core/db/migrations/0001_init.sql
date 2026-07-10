@@ -1,4 +1,4 @@
--- CortextMCP Slice 1 schema (authoritative, mirrors docs/engram-query-reference.md §2).
+-- Sechel Slice 1 schema (authoritative, mirrors docs/engram-query-reference.md §2).
 -- Idempotent: every object uses IF NOT EXISTS.
 -- Applied by the migration runner (lib/migrations.ts / lib/db.ts).
 

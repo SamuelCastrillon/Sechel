@@ -32,7 +32,7 @@ describe('mem_review — reviewObservations', () => {
       title: 'Old bugfix',
       content: 'Fix for an old issue',
       type: 'bugfix',
-      project: 'cortext',
+      project: 'sechel',
     });
 
     await db.updateTable('observations')
@@ -56,7 +56,7 @@ describe('mem_review — reviewObservations', () => {
       title: 'Memory to mark',
       content: 'Some content',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
 
     // Force review_after to the past

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { verifySessionToken } from '@/modules/panel/auth';
+import { Sidebar } from '@/modules/panel/components/Sidebar';
 
 export default async function AdminLayout({
   children,
@@ -14,17 +15,10 @@ export default async function AdminLayout({
     const session = await verifySessionToken(sessionCookie);
     if (session) {
       return (
-        <>
-          <header className="border-b border-border bg-card px-6 py-3">
-            <div className="flex items-center justify-between">
-              <h1 className="text-lg font-semibold text-foreground">CortextMCP Admin</h1>
-              <span className="text-sm text-muted-foreground">
-                User #{session.userId}
-              </span>
-            </div>
-          </header>
-          <main className="p-6">{children}</main>
-        </>
+        <div className="flex min-h-screen bg-background">
+          <Sidebar />
+          <main className="flex-1 p-6 overflow-auto">{children}</main>
+        </div>
       );
     }
   }

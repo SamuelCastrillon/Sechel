@@ -6,7 +6,7 @@ import { SignJWT, jwtVerify } from 'jose';
  * In production, set JWT_SECRET to a strong random string (min 32 chars).
  */
 function getSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET ?? 'cortextmcp-dev-jwt-secret-change-in-production-32chr';
+  const secret = process.env.JWT_SECRET ?? 'sechel-dev-jwt-secret-change-in-production-32chr';
   return new TextEncoder().encode(secret);
 }
 

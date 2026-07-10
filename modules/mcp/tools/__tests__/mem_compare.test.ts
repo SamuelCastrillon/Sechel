@@ -21,13 +21,13 @@ describe('mem_compare — compareMemories', () => {
       title: 'Memory A',
       content: 'Content A',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
     const b = await saveObservation(db, admin, {
       title: 'Memory B',
       content: 'Content B',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
 
     const result = await compareMemories(db, admin, {
@@ -58,13 +58,13 @@ describe('mem_compare — compareMemories', () => {
       title: 'Memory C',
       content: 'Content C',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
     const b = await saveObservation(db, admin, {
       title: 'Memory D',
       content: 'Content D',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
 
     const result = await compareMemories(db, admin, {

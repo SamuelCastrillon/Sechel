@@ -27,7 +27,7 @@ describe('panel/auth — JWT session tokens', () => {
     // Create a token that's already expired (iat in the past, short exp)
     const { SignJWT } = await import('jose');
     const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET ?? 'cortextmcp-dev-jwt-secret-change-in-production-32chr',
+      process.env.JWT_SECRET ?? 'sechel-dev-jwt-secret-change-in-production-32chr',
     );
     const expiredToken = await new SignJWT({ userId: 1, role: 'admin' })
       .setProtectedHeader({ alg: 'HS256' })
@@ -114,7 +114,7 @@ describe('panel/actions — register gating', () => {
     const { join } = await import('node:path');
     const { tmpdir } = await import('node:os');
     const { randomUUID } = await import('node:crypto');
-    const url = `file:${join(tmpdir(), `cortext-test-reg-${randomUUID()}.turso`)}`;
+    const url = `file:${join(tmpdir(), `sechel-test-reg-${randomUUID()}.turso`)}`;
     const client = createClient({ url });
 
     // Run migrations and seed
@@ -153,7 +153,7 @@ describe('panel/actions — register gating', () => {
     const { join } = await import('node:path');
     const { tmpdir } = await import('node:os');
     const { randomUUID } = await import('node:crypto');
-    const url = `file:${join(tmpdir(), `cortext-test-reg-block-${randomUUID()}.turso`)}`;
+    const url = `file:${join(tmpdir(), `sechel-test-reg-block-${randomUUID()}.turso`)}`;
     const client = createClient({ url });
 
     const { runMigrations } = await import('@/modules/core/db/migrations');

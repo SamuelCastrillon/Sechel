@@ -34,14 +34,14 @@ describe('mem_doctor — doctorDiagnostics', () => {
       title: 'Test memory',
       content: 'Test content',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
 
     await saveObservation(db, admin, {
       title: 'Another memory',
       content: 'More content',
       type: 'decision',
-      project: 'cortext',
+      project: 'sechel',
       topic_key: 'architecture/test',
     });
 

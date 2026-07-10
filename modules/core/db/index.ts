@@ -3,8 +3,10 @@ import { Kysely } from 'kysely';
 import { LibsqlDialect } from 'kysely-libsql';
 import { createClient, type Client } from '@libsql/client';
 import { randomUUID } from 'node:crypto';
+import { existsSync, cpSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { getEnv } from './env';
 import type { CortexDB, UserRow } from './db-types';
 import { runMigrations } from './migrations';
 import { seedAdmin } from './seed';
@@ -14,15 +16,25 @@ import { seedAdmin } from './seed';
  * cannot cross instance boundaries (defense-in-depth on top of per-project auth).
  */
 export function TENANT_ID(): string {
-  return process.env.CORTEXT_ORG_ID ?? 'default';
+  return getEnv('SECHEL_ORG_ID', 'CORTEXT_ORG_ID', 'default')!;
 }
 
 export function resolveUrl(): { url: string; token?: string } {
   const url = process.env.TURSO_DATABASE_URL;
   const token = process.env.TURSO_AUTH_TOKEN;
   if (url) return { url, token };
+
   // Local dev default: ephemeral file DB so the app runs without Turso.
-  return { url: 'file:./.cortext-local.db' };
+  const oldPath = join(process.cwd(), '.cortext-local.db');
+  const newPath = join(process.cwd(), '.sechel-local.db');
+
+  // Auto-migrate: copy old DB to new path if new doesn't exist
+  if (!existsSync(newPath) && existsSync(oldPath)) {
+    cpSync(oldPath, newPath);
+    console.log('[sechel] Migrated local DB: .cortext-local.db → .sechel-local.db');
+  }
+
+  return { url: 'file:./.sechel-local.db' };
 }
 
 export function createLibsqlClient(): Client {
@@ -60,7 +72,7 @@ export async function createTestDb(): Promise<{
   client: Client;
   admin: UserRow;
 }> {
-  const url = `file:${join(tmpdir(), `cortext-test-${randomUUID()}.turso`)}`;
+  const url = `file:${join(tmpdir(), `sechel-test-${randomUUID()}.turso`)}`;
   const client = createClient({ url });
   await runMigrations(client);
   // Pass explicit test credentials so seedAdmin is never env-var dependent

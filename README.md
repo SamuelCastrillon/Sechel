@@ -1,11 +1,11 @@
-# CortextMCP
+# Sechel
 
 Servidor MCP en la nube para memorias persistentes de agentes de IA, 100%
 compatible con la API de herramientas `mem_*` de
 [Engram](https://github.com/Gentleman-Programming/engram).
 
 Los agentes (Claude Code, OpenCode, Cursor, Gemini CLI, etc.) que soporten
-**MCP over HTTP** pueden apuntar a CortextMCP y usar las mismas herramientas
+**MCP over HTTP** pueden apuntar a Sechel y usar las mismas herramientas
 `mem_save`, `mem_search`, `mem_context`, … sin cambios. La diferencia: la memoria
 vive en la nube (Turso / libSQL), no en un archivo SQLite local, y está aislada
 por tenant.
@@ -15,7 +15,7 @@ por tenant.
 ## Por qué existe
 
 Engram corre como binario local con SQLite de archivo y transporte **stdio**.
-Eso no se despliega en Vercel (no hay stdio en serverless). CortextMCP es el
+Eso no se despliega en Vercel (no hay stdio en serverless). Sechel es el
 mismo cerebro de memoria, pero:
 
 - **Transporte:** MCP Streamable HTTP (no stdio).
@@ -44,20 +44,20 @@ SQL exacto por herramienta.
 
 ## Estado actual
 
-> ⚠️ **Proyecto en bootstrap.** La infraestructura MCP y la conexión a Turso
-> están cableadas, pero la lógica de negocio aún no. Lo implementado:
+> ✅ **v0.1.0 — Rebranding a Sechel completado.** Proyecto funcional con auth
+> real, panel admin y todas las herramientas MCP implementadas.
 
-| Componente            | Estado                                   |
-| --------------------- | ---------------------------------------- |
-| Handler MCP (`/api/mcp`) | ✅ vivo (hoy solo expone `ping`)      |
-| Auth (bearer/OAuth)   | 🟡 stub — `verifyToken` acepta cualquier token y devuelve `userId: 'stub'` |
-| Cliente Turso         | ✅ lazy client listo (`lib/db.ts`)       |
-| Schema de memorias    | ❌ pendiente (marcado como TODO)         |
-| 20 herramientas `mem_*` | ❌ pendiente (solo `ping` por ahora)   |
-| Admin / login         | 🟡 páginas base creadas (`/admin`)       |
+| Componente                          | Estado                                    |
+| ----------------------------------- | ----------------------------------------- |
+| Handler MCP (`/api/mcp`)            | ✅ 23 herramientas `mem_*` operativas     |
+| Auth (bearer)                       | ✅ Argon2id + JWT + SHA-256 tokens        |
+| Cliente Turso                       | ✅ Lazy client configurado (`modules/core/db/`) |
+| Schema multi-tenant                 | ✅ Tablas + triggers FTS5 + caché         |
+| Conflict surfacing                  | ❌ Pendiente (encola, no resuelve aún)    |
+| Panel admin                         | ✅ Login, registro, dashboard, sidebar    |
+| 97 tests                            | ✅ Todos pasando                          |
 
-La referencia de queries ya está documentada y es la especificación que las
-herramientas deben cumplir: `docs/engram-query-reference.md`.
+> ⚡ **Siguiente:** v0.2.0 — panel /users, /settings, /apitokens
 
 ---
 
@@ -86,8 +86,14 @@ El endpoint MCP queda en `http://localhost:3000/api/mcp`.
 | --------------------- | ------------------------------------------------- |
 | `TURSO_URL`           | URL de la base Turso (obligatoria)                |
 | `TURSO_TOKEN`         | Token de acceso de Turso                          |
-| `AUTH_ISSUER_URL`     | Issuer OAuth para metadata de recurso protegido   |
-| `MCP_REQUIRED_SCOPES` | Scopes que el token debe tener (default `read:memories`) |
+| `SECHEL_ORG_ID`       | Tenant ID para el schema multi-tenant             |
+| `SECHEL_DEV_TOKEN`    | Token de desarrollo para auth                     |
+| `JWT_SECRET`          | Secreto para firmar JWT (32+ chars)               |
+| `ADMIN_EMAIL`         | Email del admin inicial (seed)                    |
+| `ADMIN_PASSWORD`      | Password del admin inicial (seed)                 |
+
+> Las variables `CORTEXT_ORG_ID` y `CORTEXT_DEV_TOKEN` aún funcionan
+> como fallback con advertencia de deprecación.
 
 ---
 
@@ -104,12 +110,12 @@ No se requiere stdin/stdio: los agentes se conectan por HTTP al endpoint
 
 ## Configuración en OpenCode
 
-CortextMCP puede configurarse de dos formas en OpenCode, según lo que necesites.
+Sechel puede configurarse de dos formas en OpenCode, según lo que necesites.
 
 ### Modo Engram-compatible (reemplazo directo)
 
 Las herramientas `mem_*` de Engram se llaman con prefijo `engram_` (ej.
-`engram_mem_save`). Para que los agentes usen CortextMCP sin cambiar ni una línea
+`engram_mem_save`). Para que los agentes usen Sechel sin cambiar ni una línea
 de código, reemplazá el servidor `engram` en la **configuración global**
 (`~/.config/opencode/opencode.json`):
 
@@ -128,19 +134,19 @@ de código, reemplazá el servidor `engram` en la **configuración global**
 ```
 
 Los agentes siguen llamando a `engram_mem_save`, `engram_mem_search`, etc. —
-CortextMCP responde en el mismo formato que Engram. No se necesita cambiar nada
+Sechel responde en el mismo formato que Engram. No se necesita cambiar nada
 en las instrucciones de los agentes ni en skills existentes.
 
-### Modo servidor separado (Cortext como MCP aparte)
+### Modo servidor separado (Sechel como MCP aparte)
 
-Si querés tener **Engram local** y **CortextMCP** como dos servidores distintos
+Si querés tener **Engram local** y **Sechel** como dos servidores distintos
 (por ejemplo durante una migración), agregalo con otro nombre en cualquier
 `opencode.json` (proyecto o global):
 
 ```json
 {
   "mcp": {
-    "cortext": {
+    "sechel": {
       "type": "remote",
       "url": "https://<tu-despliegue>.vercel.app/api/mcp",
       "headers": {
@@ -151,8 +157,8 @@ Si querés tener **Engram local** y **CortextMCP** como dos servidores distintos
 }
 ```
 
-En este modo los agentes ven las herramientas con prefijo `cortext_` en lugar de
-`engram_` (`cortext_mem_save`, `cortext_mem_search`, …). Necesitás indicarles
+En este modo los agentes ven las herramientas con prefijo `sechel_` en lugar de
+`engram_` (`sechel_mem_save`, `sechel_mem_search`, …). Necesitás indicarles
 explícitamente que usen ese nombre en lugar del original.
 
 ### Global vs. proyecto
@@ -165,7 +171,7 @@ explícitamente que usen ese nombre en lugar del original.
 OpenCode mergea ambas configuraciones: lo que pongas en la global aplica a todos
 los proyectos, y podés overridear por proyecto si es necesario.
 
-> **Migrar desde Engram local:** mantené Engram y CortextMCP como dos MCP
+> **Migrar desde Engram local:** mantené Engram y Sechel como dos MCP
 > separados en la misma sesión del agente, y pedile que copie las memorias que
 > quieras conservando el mismo `topic_key` y `type`. No hay import masivo: la
 > propia API `mem_*` es el camino de migración. Ver sección "Migración" en
@@ -180,36 +186,48 @@ app/
   api/mcp/route.ts              # Handler MCP over HTTP (Streamable HTTP + OAuth)
   .well-known/
     oauth-protected-resource/   # Metadata de recurso protegido (MCP auth)
-  admin/                        # UI de administración (base)
-lib/
-  auth.ts                       # verifyToken (stub por ahora)
-  db.ts                         # Cliente Turso lazy
+  admin/                        # Panel de administración (shadcn/ui)
+    login/                      # Login con Argon2id + JWT
+    register/                   # Registro de usuarios
+    page.tsx                    # Dashboard
+modules/
+  core/                         # Capa de dominio
+    db/                         # Cliente Turso, schema, migraciones, getEnv helper
+    auth/                       # verifyToken, autorización, tokens API
+  mcp/
+    server/                     # Servidor MCP (mcp-handler)
+    tools/                      # 23 herramientas mem_* implementadas
+  panel/
+    auth/                       # Lógica de auth del panel (server actions)
+    components/                 # UI: Sidebar, LoginForm, RegisterForm, etc.
 docs/
-  engram-query-reference.md     # SQL por herramienta (spec de compatibilidad)
+  engram-query-reference.md     # SQL exacto por herramienta
+  architecture.md               # Decisiones de arquitectura
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] Definir schema multi-tenant en Turso (`tenant_id` en `observations`,
-      `sessions`, `user_prompts`, `memory_relations`) + triggers FTS5.
-- [ ] Implementar las 20 herramientas `mem_*` según `engram-query-reference.md`.
-- [ ] Auth real: validar bearer contra la tabla de usuarios/tokens en Turso.
-- [ ] Resolución de `project` explícita (no por cwd) + tenant por token.
-- [ ] Conflict surfacing (`mem_save` → `FindCandidates` → `memory_relations`).
+- [x] Schema multi-tenant + FTS5
+- [x] 23 herramientas `mem_*` implementadas
+- [x] Auth real: Argon2id, JWT, SHA-256 tokens API
+- [x] Panel admin: login, registro, dashboard, sidebar
+- [x] Rebranding a Sechel (v0.1.0)
+- [ ] Panel /users, /settings, /apitokens (v0.2.0)
+- [ ] Conflict surfacing (`mem_save` → `FindCandidates` → `memory_relations`)
 
 ---
 
 ## Atribución y licencia
 
-CortextMCP es un proyecto original con licencia **MIT**. No contiene código fuente
+Sechel es un proyecto original con licencia **MIT**. No contiene código fuente
 de Engram, pero la especificación de queries en
 [`docs/engram-query-reference.md`](docs/engram-query-reference.md) está derivada
 del store interno de Engram para mantener compatibilidad 100% de herramientas.
 
 - [Engram](https://github.com/Gentleman-Programming/engram) — © 2026 Alan Buscaglia (MIT)
-- [CortextMCP](LICENSE) — © 2026 samcasdev (MIT)
+- [Sechel](LICENSE) — © 2026 samcasdev (MIT)
 
 ### Referencia
 

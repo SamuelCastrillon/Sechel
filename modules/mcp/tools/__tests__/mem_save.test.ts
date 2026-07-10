@@ -20,7 +20,7 @@ describe('mem_save — L1 Engram parity', () => {
       title: 'JWT auth',
       content: 'Use middleware',
       type: 'decision',
-      project: 'cortext',
+      project: 'sechel',
       scope: 'project',
       topic_key: 'architecture/jwt',
     });
@@ -31,7 +31,7 @@ describe('mem_save — L1 Engram parity', () => {
       title: 'JWT auth v2',
       content: 'Updated middleware guidance',
       type: 'decision',
-      project: 'cortext',
+      project: 'sechel',
       scope: 'project',
       topic_key: 'architecture/jwt',
     });
@@ -54,7 +54,7 @@ describe('mem_save — L1 Engram parity', () => {
       title: 'Same title',
       content: 'identical body',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
     expect(a.action).toBe('inserted');
     expect(a.duplicate_count).toBe(1);
@@ -63,7 +63,7 @@ describe('mem_save — L1 Engram parity', () => {
       title: 'Same title',
       content: 'identical body',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
     expect(b.action).toBe('deduped');
     expect(b.id).toBe(a.id);
@@ -80,8 +80,8 @@ describe('mem_save — L1 Engram parity', () => {
   });
 
   it('different content => produces a second row', async () => {
-    await saveObservation(db, admin, { title: 'A', content: 'alpha', type: 'manual', project: 'cortext' });
-    await saveObservation(db, admin, { title: 'B', content: 'beta', type: 'manual', project: 'cortext' });
+    await saveObservation(db, admin, { title: 'A', content: 'alpha', type: 'manual', project: 'sechel' });
+    await saveObservation(db, admin, { title: 'B', content: 'beta', type: 'manual', project: 'sechel' });
     const res = await db
       .selectFrom('observations')
       .select(({ fn }) => [fn.countAll().as('c')])
@@ -96,7 +96,7 @@ describe('mem_save — L1 Engram parity', () => {
       title: 'JWT auth design',
       content: 'JWT auth middleware recommended for the server',
       type: 'decision',
-      project: 'cortext',
+      project: 'sechel',
       scope: 'project',
       topic_key: 'architecture/jwt-a',
     });
@@ -106,7 +106,7 @@ describe('mem_save — L1 Engram parity', () => {
       title: 'JWT auth design',
       content: 'JWT auth middleware recommended',
       type: 'decision',
-      project: 'cortext',
+      project: 'sechel',
       scope: 'project',
       topic_key: 'architecture/jwt-b',
     });
@@ -123,15 +123,15 @@ describe('mem_search — L1 Engram parity', () => {
       title: 'jwt auth middleware',
       content: 'jwt auth is the recommended middleware approach',
       type: 'decision',
-      project: 'cortext',
+      project: 'sechel',
     });
     await saveObservation(db, admin, {
       title: 'cats are nice',
       content: 'a totally unrelated note about cats and weather',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
-    const results = await searchObservations(db, admin, { query: 'jwt auth', project: 'cortext' });
+    const results = await searchObservations(db, admin, { query: 'jwt auth', project: 'sechel' });
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].id).toBe(jwt.id);
     // bm25 rank is negative; first result must be >= (less negative than) later ones
@@ -145,7 +145,7 @@ describe('mem_search — L1 Engram parity', () => {
       title: 'Pinned architecture note',
       content: 'architecture detail',
       type: 'decision',
-      project: 'cortext',
+      project: 'sechel',
       scope: 'project',
       topic_key: 'architecture/pinned',
     });
@@ -153,13 +153,13 @@ describe('mem_search — L1 Engram parity', () => {
       title: 'noise',
       content: 'architecture noise content here',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
       scope: 'project',
       topic_key: 'architecture/other',
     });
     const results = await searchObservations(db, admin, {
       query: 'architecture/pinned',
-      project: 'cortext',
+      project: 'sechel',
     });
     expect(results[0].id).toBe(target.id);
     expect(results[0].rank).toBe(-1000);
@@ -170,10 +170,10 @@ describe('mem_search — L1 Engram parity', () => {
       title: 'auth strategy',
       content: 'discussion about authentication strategy',
       type: 'decision',
-      project: 'cortext',
+      project: 'sechel',
     });
-    const all = await searchObservations(db, admin, { query: 'auth nonsense', project: 'cortext', match_mode: 'all' });
-    const any = await searchObservations(db, admin, { query: 'auth nonsense', project: 'cortext', match_mode: 'any' });
+    const all = await searchObservations(db, admin, { query: 'auth nonsense', project: 'sechel', match_mode: 'all' });
+    const any = await searchObservations(db, admin, { query: 'auth nonsense', project: 'sechel', match_mode: 'any' });
     expect(any.length).toBeGreaterThanOrEqual(all.length);
   });
 });

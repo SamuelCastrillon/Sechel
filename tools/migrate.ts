@@ -8,7 +8,7 @@ async function main() {
   const client = createLibsqlClient();
   console.log(
     'Applying migrations to',
-    process.env.TURSO_DATABASE_URL ?? 'local default DB (file:./.cortext-local.db)',
+    process.env.TURSO_DATABASE_URL ?? 'local default DB (file:./.sechel-local.db)',
   );
   await runMigrations(client);
 

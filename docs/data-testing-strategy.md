@@ -1,6 +1,6 @@
-# Data Layer & Testing Strategy — CortextMCP
+# Data Layer & Testing Strategy — Sechel
 
-Authoritative decisions for the CortextMCP cloud memory server. These choices
+Authoritative decisions for the Sechel cloud memory server. These choices
 are locked: any implementation MUST follow them.
 
 - Stack/transport context: Next.js 15 + React 19, MCP over HTTP (Vercel),

@@ -18,7 +18,7 @@ export default async function AdminDashboard() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-      <div className="rounded-lg border bg-card p-6">
+      <div className="border border-outline-variant bg-card p-6">
         <h2 className="text-xl font-semibold mb-4">Session Info</h2>
         <dl className="space-y-2 text-sm">
           <div className="flex gap-2">

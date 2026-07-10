@@ -22,13 +22,13 @@ describe('mem_judge — judgeRelation', () => {
       title: 'Obs A',
       content: 'Content A',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
     const b = await saveObservation(db, admin, {
       title: 'Obs B',
       content: 'Content B',
       type: 'manual',
-      project: 'cortext',
+      project: 'sechel',
     });
 
     // Insert a pending memory_relations row directly (simulating conflict surfacing)

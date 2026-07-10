@@ -29,7 +29,7 @@ Some next steps`;
 
     const result = await capturePassive(db, admin, {
       content,
-      project: 'cortext',
+      project: 'sechel',
       source: 'test-session',
     });
 

@@ -1,7 +1,7 @@
 # JUDGMENT-DAY VERDICT — turso-libsql
 
 VERDICT: PARTIAL-TRUST (2026-07-08)
-Applies to: CortextMCP (uses @libsql/client on Turso Cloud, FTS5, Vercel serverless)
+Applies to: Sechel (uses @libsql/client on Turso Cloud, FTS5, Vercel serverless)
 
 ## Trusted for
 - Connection setup: `createClient({ url, authToken })` — matches lib/db.ts exactly.

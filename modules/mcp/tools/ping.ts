@@ -6,7 +6,7 @@ export function registerPing(server: McpServer): void {
     'ping',
     { description: 'Health check / server info' },
     async () => ({
-      content: [{ type: 'text', text: 'CortextMCP MCP server is alive' }],
+      content: [{ type: 'text', text: 'Sechel MCP server is alive' }],
     }),
   );
 }

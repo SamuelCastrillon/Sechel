@@ -1,15 +1,15 @@
-# Engram Query Reference — CortextMCP Cloud (single-org, project-scoped)
+# Engram Query Reference — Sechel Cloud (single-org, project-scoped)
 
 > Portions of this document are derived from Engram's internal store layer.
 > © 2026 Alan Buscaglia — MIT License
 > https://github.com/Gentleman-Programming/engram
 
 This document is the authoritative reference for the SQL behavior of the 20 `mem_*`
-MCP tools exposed by the CortextMCP cloud server. It is derived from the upstream
+MCP tools exposed by the Sechel cloud server. It is derived from the upstream
 Engram `internal/store/store.go` and `internal/store/relations.go` so tool behavior
 stays 100% compatible for any MCP-HTTP agent.
 
-> **Structural model (read this first).** CortextMCP is an **open-source, self-hosted**
+> **Structural model (read this first).** Sechel is an **open-source, self-hosted**
 > tool. Each deployment serves **one organization/team/person** — there is no
 > multi-company tenancy inside a single database. Isolation between organizations is
 > achieved by **separate deployments**, not by schema. Within one instance:
@@ -28,7 +28,7 @@ stays 100% compatible for any MCP-HTTP agent.
 
 ## 1. Deployment & tenancy model
 
-Upstream Engram is single-user with a local SQLite file. CortextMCP is a shared
+Upstream Engram is single-user with a local SQLite file. Sechel is a shared
 server for a **team**, so data is organized differently:
 
 - **One instance = one org.** The `tenant_id` column is a constant org identifier for
@@ -40,7 +40,7 @@ server for a **team**, so data is organized differently:
 - **Per-project authorization.** `user_project_access` grants a user a permission
   (`read` / `write` / `admin`) on a project. `admin` role implies all projects.
 
-| Upstream table             | CortextMCP change                                       |
+| Upstream table             | Sechel change                                       |
 | -------------------------- | ------------------------------------------------------- |
 | `sessions`                 | + `tenant_id TEXT NOT NULL` (constant per instance)     |
 | `observations`             | + `tenant_id TEXT NOT NULL` (constant per instance)     |
@@ -59,7 +59,7 @@ Notes:
   external identity. It is used for idempotent upserts and for the conflict
   surfacing layer.
 - Migration from a local Engram instance is **not** a bulk import. Users keep Engram
-  configured alongside CortextMCP and ask their agent to copy selected memories via
+  configured alongside Sechel and ask their agent to copy selected memories via
   `mem_save` (same `topic_key`/`type`). The cloud server needs no special import
   endpoint.
 
@@ -614,7 +614,7 @@ WHERE tenant_id = :tenant_id AND id = :id AND deleted_at IS NULL;
 
 ## 4. Compatibility checklist
 
-| Upstream behavior            | CortextMCP | Notes                                  |
+| Upstream behavior            | Sechel | Notes                                  |
 | ---------------------------- | ---------- | -------------------------------------- |
 | 20 `mem_*` tools             | ✅         | identical names + signatures           |
 | Upsert by `topic_key`        | ✅         | + constant `tenant_id` (single org) scoping        |
@@ -631,11 +631,11 @@ WHERE tenant_id = :tenant_id AND id = :id AND deleted_at IS NULL;
 
 ## 5. Migration from local Engram (recommended flow)
 
-1. User keeps **Engram (local) AND CortextMCP** configured as two separate MCP
+1. User keeps **Engram (local) AND Sechel** configured as two separate MCP
    servers in the same agent session.
 2. User asks the agent: *"Read my Engram memories for project X and copy the ones
-   I want into CortextMCP, keeping the same `topic_key` and `type`."*
-3. Agent calls `mem_search`/`mem_context` on Engram, then `mem_save` on CortextMCP
+   I want into Sechel, keeping the same `topic_key` and `type`."*
+3. Agent calls `mem_search`/`mem_context` on Engram, then `mem_save` on Sechel
    per selected memory.
 4. Once satisfied, user can disable Engram.
 

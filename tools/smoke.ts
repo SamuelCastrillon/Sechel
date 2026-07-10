@@ -5,7 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const url = process.env.MCP_BASE_URL ?? 'http://localhost:3000/api/mcp';
-const token = process.env.CORTEXT_DEV_TOKEN ?? 'dev-admin-token';
+const token = process.env.SECHEL_DEV_TOKEN ?? process.env.CORTEXT_DEV_TOKEN ?? 'dev-admin-token';
 
 async function main() {
   const transport = new StreamableHTTPClientTransport(new URL(url), {

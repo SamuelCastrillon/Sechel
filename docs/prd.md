@@ -1,6 +1,6 @@
-# CortextMCP — Product Requirements Document
+# Sechel — Product Requirements Document
 
-CortextMCP is an **open-source, self-hosted memory server** that exposes Engram's
+Sechel is an **open-source, self-hosted memory server** that exposes Engram's
 `mem_*` tools over MCP-HTTP with **100% behavioral compatibility**, so any MCP agent
 keeps working unchanged. Each organization, team, or solo developer deploys their own
 instance. Inside one instance, multiple users share memories organized by **project**,
@@ -69,7 +69,7 @@ parity tests before expanding surface.
 
 - **Multi-organization (company-level) tenancy inside one database.** Each org runs its
   own instance.
-- A managed/hosted CortextMCP service.
+- A managed/hosted Sechel service.
 - Bulk import from local Engram (agents copy selected memories via `mem_save`).
 - Cross-instance sharing of memories.
 
@@ -93,7 +93,7 @@ parity tests before expanding surface.
 
 ## Success criteria
 
-- [ ] Any MCP agent using Engram's `mem_*` works unchanged against CortextMCP.
+- [ ] Any MCP agent using Engram's `mem_*` works unchanged against Sechel.
 - [ ] A member can only read/write the projects they are granted.
 - [ ] An admin can create users and assign/revoke project permissions.
 - [ ] Parity tests pass for every shipped tool.

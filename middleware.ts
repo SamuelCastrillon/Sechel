@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Middleware: Protect admin routes by checking for session cookie.
- * The login page (/admin/login) is excluded from protection.
+ * The login and register pages (/admin/login, /admin/register) are excluded from protection.
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Only protect /admin routes (except login and API routes)
+  // Only protect /admin routes (except login, register, and API routes)
   const isAdminLogin = pathname === '/admin/login';
+  const isAdminRegister = pathname === '/admin/register';
   const isAdminApi = pathname.startsWith('/admin/api/');
 
-  if (pathname.startsWith('/admin') && !isAdminLogin && !isAdminApi) {
+  if (pathname.startsWith('/admin') && !isAdminLogin && !isAdminRegister && !isAdminApi) {
     const sessionCookie = request.cookies.get('session')?.value;
 
     if (!sessionCookie) {
