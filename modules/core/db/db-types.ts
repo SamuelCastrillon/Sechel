@@ -63,12 +63,30 @@ export interface MemoryRelationsTable {
   updated_at: ColumnType<string, string | undefined, string>;
 }
 
+export interface UserTokensTable {
+  id: Generated<number>;
+  tenant_id: string;
+  user_id: number;
+  prefix: string;
+  token_hash: string;
+  description: string | null;
+  last_used_at: string | null;
+  created_at: ColumnType<string, string | undefined, string>;
+}
+
+export interface InstanceSettingsTable {
+  key: string;
+  value: string;
+  updated_at: ColumnType<string, string | undefined, string>;
+}
+
 export interface UsersTable {
   id: Generated<number>;
   tenant_id: string;
   username: string;
   role: string;
   credential_hash: string;
+  is_active: ColumnType<number, number | undefined, number>;
   created_by: number | null;
   created_at: ColumnType<string, string | undefined, string>;
 }
@@ -99,6 +117,8 @@ export interface CortexDB {
   users: UsersTable;
   projects: ProjectsTable;
   user_project_access: UserProjectAccessTable;
+  user_tokens: UserTokensTable;
+  instance_settings: InstanceSettingsTable;
   _migrations: { version: string; applied_at: string };
 }
 

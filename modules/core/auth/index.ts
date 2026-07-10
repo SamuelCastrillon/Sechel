@@ -4,8 +4,8 @@ import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { CortexDB } from '../db/db-types';
 import { getDb, TENANT_ID } from '../db';
-import { DEV_ADMIN_USERNAME, DEV_ADMIN_CREDENTIAL_HASH } from '../db/seed';
 import { normalizeProject } from '../domain/normalize';
+import { hashToken } from './tokens';
 
 export interface Actor {
   userId: number;
@@ -16,37 +16,78 @@ export interface Actor {
 export type RequiredLevel = 'read' | 'write';
 
 /**
- * SLICE 1 DEV BYPASS — documented, NOT a silent no-op.
+ * Verify a bearer token.
  *
- * Real bearer-token -> users resolution is Slice 3. For Slice 1, exactly ONE
- * dev token (CORTEXT_DEV_TOKEN, default 'dev-admin-token') is mapped to the
- * seeded admin account. ANY other token (or none) is rejected (returns
- * undefined -> 401). This makes the server usable and lets parity tests pass
- * without faking auth. It will be replaced by real auth in Slice 3.
+ * 1. If CORTEXT_DEV_TOKEN is explicitly set and non-empty, match against it directly.
+ * 2. Otherwise, compute SHA-256 of the bearer token and look up in user_tokens.
+ * 3. The associated user must have is_active = 1.
+ *
+ * @param _req - HTTP request (unused by this implementation)
+ * @param bearerToken - The bearer token string
+ * @param testDb - Optional Kysely instance for testing (avoids global singleton)
  */
-const DEV_TOKEN = process.env.CORTEXT_DEV_TOKEN ?? 'dev-admin-token';
-
 export async function verifyToken(
   _req: Request,
   bearerToken?: string,
+  testDb?: Kysely<CortexDB>,
 ): Promise<AuthInfo | undefined> {
-  if (!bearerToken || bearerToken !== DEV_TOKEN) return undefined;
+  if (!bearerToken) return undefined;
 
-  const db = await getDb();
-  const res = await sql<{ id: number; role: string; username: string }>`
-    SELECT id, role, username FROM users
-    WHERE tenant_id = ${TENANT_ID()} AND username = ${DEV_ADMIN_USERNAME} AND role = 'admin'
+  const db = testDb ?? await getDb();
+
+  // Step 1: Dev bypass (only when CORTEXT_DEV_TOKEN is explicitly set to non-empty)
+  const devToken = process.env.CORTEXT_DEV_TOKEN;
+  if (devToken && devToken.length > 0 && bearerToken === devToken) {
+    const res = await sql<{ id: number; role: string; username: string }>`
+      SELECT id, role, username FROM users
+      WHERE tenant_id = ${TENANT_ID()} AND role = 'admin'
+      ORDER BY username ASC LIMIT 1
+    `.execute(db);
+
+    if (res.rows.length > 0) {
+      const u = res.rows[0];
+      return {
+        token: bearerToken,
+        scopes: ['read:memories', 'write:memories'],
+        clientId: 'dev',
+        extra: { userId: u.id, role: u.role, username: u.username },
+      };
+    }
+    return undefined;
+  }
+
+  // Step 2: SHA-256 hash lookup in user_tokens
+  const tokenHash = hashToken(bearerToken);
+
+  const res = await sql<{
+    user_id: number;
+    role: string;
+    username: string;
+    is_active: number;
+  }>`
+    SELECT u.id AS user_id, u.role, u.username, u.is_active
+    FROM user_tokens t
+    JOIN users u ON u.id = t.user_id AND u.tenant_id = t.tenant_id
+    WHERE t.token_hash = ${tokenHash}
+      AND u.tenant_id = ${TENANT_ID()}
     LIMIT 1
   `.execute(db);
 
   if (res.rows.length === 0) return undefined;
+  const row = res.rows[0];
 
-  const u = res.rows[0];
+  if (!row.is_active) return undefined;
+
+  const scopes: string[] = ['read:memories'];
+  if (row.role === 'admin') {
+    scopes.push('write:memories');
+  }
+
   return {
     token: bearerToken,
-    scopes: ['read:memories', 'write:memories'],
-    clientId: 'dev',
-    extra: { userId: u.id, role: u.role, username: u.username },
+    scopes,
+    clientId: String(row.user_id),
+    extra: { userId: row.user_id, role: row.role, username: row.username },
   };
 }
 
@@ -109,5 +150,3 @@ export async function assertAuthorized(
     );
   }
 }
-
-export { DEV_ADMIN_USERNAME, DEV_ADMIN_CREDENTIAL_HASH };

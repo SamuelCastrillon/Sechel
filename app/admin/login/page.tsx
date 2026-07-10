@@ -1,19 +1,30 @@
-// TODO: implement real login + token issuance.
-export default function AdminLogin() {
+import { createClient } from '@libsql/client';
+import { resolveUrl, TENANT_ID } from '@/modules/core/db';
+import { LoginForm } from '@/modules/panel/components/LoginForm';
+import { RegisterForm } from '@/modules/panel/components/RegisterForm';
+
+async function getRegistrationEnabled(): Promise<boolean> {
+  try {
+    const client = createClient(resolveUrl());
+    const res = await client.execute({
+      sql: `SELECT value FROM instance_settings WHERE key = 'registration_enabled'`,
+    });
+    client.close();
+    return res.rows.length > 0 && (res.rows[0] as Record<string, unknown>).value === '1';
+  } catch {
+    return false;
+  }
+}
+
+export default async function AdminLoginPage() {
+  const registrationEnabled = await getRegistrationEnabled();
+
   return (
-    <form style={{ fontFamily: 'system-ui', maxWidth: 320 }}>
-      <h1>Sign in</h1>
-      <label>
-        Email
-        <input type="email" name="email" style={{ display: 'block', width: '100%' }} />
-      </label>
-      <label>
-        Password
-        <input type="password" name="password" style={{ display: 'block', width: '100%' }} />
-      </label>
-      <button type="submit" style={{ marginTop: 12 }}>
-        Sign in
-      </button>
-    </form>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="flex flex-col items-center gap-6">
+        <LoginForm />
+        {registrationEnabled && <RegisterForm enabled={true} />}
+      </div>
+    </div>
   );
 }
