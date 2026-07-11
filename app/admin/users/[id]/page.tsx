@@ -1,5 +1,4 @@
-import { createClient } from '@libsql/client';
-import { resolveUrl, createLibsqlClient, TENANT_ID } from '@/modules/core/db';
+import { createLibsqlClient, TENANT_ID } from '@/modules/core/db';
 import { requireAdmin } from '@/modules/panel/auth';
 import { UserPermissionsClient } from './UserPermissionsClient';
 
