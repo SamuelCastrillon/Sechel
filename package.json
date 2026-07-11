@@ -17,6 +17,11 @@
     "test:core": "pnpm -C packages/core test",
     "typecheck:core": "pnpm -C packages/core typecheck",
     "clean:core": "pnpm -C packages/core clean",
+    "build:mcp-server": "pnpm -C packages/mcp-server build",
+    "dev:mcp-server": "pnpm -C packages/mcp-server dev",
+    "test:mcp-server": "pnpm -C packages/mcp-server test",
+    "typecheck:mcp-server": "pnpm -C packages/mcp-server typecheck",
+    "clean:mcp-server": "pnpm -C packages/mcp-server clean",
     "build:pkgs": "pnpm -r --filter='./packages/*' run build",
     "test:pkgs": "pnpm -r --filter='./packages/*' run test",
     "typecheck:pkgs": "pnpm -r --filter='./packages/*' run typecheck"
