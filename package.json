@@ -11,10 +11,19 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "migrate": "tsx --tsconfig tsconfig.scripts.json modules/core/scripts/migrate.ts"
+    "migrate": "tsx --tsconfig tsconfig.scripts.json modules/core/scripts/migrate.ts",
+    "build:core": "pnpm -C packages/core build",
+    "dev:core": "pnpm -C packages/core dev",
+    "test:core": "pnpm -C packages/core test",
+    "typecheck:core": "pnpm -C packages/core typecheck",
+    "clean:core": "pnpm -C packages/core clean",
+    "build:pkgs": "pnpm -r --filter='./packages/*' run build",
+    "test:pkgs": "pnpm -r --filter='./packages/*' run test",
+    "typecheck:pkgs": "pnpm -r --filter='./packages/*' run typecheck"
   },
   "dependencies": {
     "@libsql/client": "^0.15.0",
+    "@sechel/core": "workspace:*",
     "@modelcontextprotocol/sdk": "latest",
     "@next/env": "^15.0.0",
     "hash-wasm": "^4.11.0",
