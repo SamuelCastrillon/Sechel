@@ -1,5 +1,5 @@
-import { createClient, type Client } from '@libsql/client';
-import { resolveUrl, TENANT_ID } from '@/modules/core/db';
+import { createClient } from '@libsql/client';
+import { resolveUrl, createLibsqlClient, TENANT_ID } from '@/modules/core/db';
 import { requireAdmin } from '@/modules/panel/auth';
 import { UserPermissionsClient } from './UserPermissionsClient';
 
@@ -15,27 +15,34 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-async function getUser(userId: number) {
-  const client = createClient(resolveUrl());
+function rowToPermission(r: Record<string, unknown>): PermissionRow {
+  return {
+    id: r.id as number,
+    project: r.project as string,
+    permission: r.permission as string,
+    granted_by: r.granted_by as number | null,
+    created_at: r.created_at as string,
+  };
+}
+
+async function fetchUserAndPermissions(userId: number) {
+  const client = createLibsqlClient();
   try {
     const users = await client.execute({
       sql: `SELECT id, username, role, is_active, created_by, created_at FROM users WHERE tenant_id = ? AND id = ?`,
       args: [TENANT_ID(), userId],
     });
-    return users.rows.length > 0 ? (users.rows[0] as Record<string, unknown>) : null;
-  } finally {
-    client.close();
-  }
-}
+    const user = users.rows.length > 0 ? (users.rows[0] as Record<string, unknown>) : null;
 
-async function getUserPermissions(userId: number): Promise<PermissionRow[]> {
-  const client = createClient(resolveUrl());
-  try {
+    if (!user) return { user: null, permissions: [] };
+
     const perms = await client.execute({
       sql: `SELECT id, project, permission, granted_by, created_at FROM user_project_access WHERE tenant_id = ? AND user_id = ? ORDER BY project`,
       args: [TENANT_ID(), userId],
     });
-    return perms.rows.map((r) => r as unknown as PermissionRow);
+    const permissions = perms.rows.map((r) => rowToPermission(r as Record<string, unknown>));
+
+    return { user, permissions };
   } finally {
     client.close();
   }
@@ -55,7 +62,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     );
   }
 
-  const user = await getUser(userId);
+  const { user, permissions } = await fetchUserAndPermissions(userId);
   if (!user) {
     return (
       <div className="space-y-6">
@@ -122,7 +129,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       </div>
 
       {/* Project Permissions */}
-      <UserPermissionsClient userId={userId} initialPermissions={await getUserPermissions(userId)} />
+      <UserPermissionsClient userId={userId} initialPermissions={permissions} />
     </div>
   );
 }

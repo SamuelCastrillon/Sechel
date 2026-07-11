@@ -18,7 +18,7 @@ export function UserPermissionsClient({
   userId: number;
   initialPermissions: Permission[];
 }) {
-  const [permissions, setPermissions] = useState<Permission[]>(initialPermissions);
+  const [permissions] = useState<Permission[]>(initialPermissions);
   const [newProject, setNewProject] = useState('');
   const [newPermission, setNewPermission] = useState('read');
   const [error, setError] = useState<string | null>(null);

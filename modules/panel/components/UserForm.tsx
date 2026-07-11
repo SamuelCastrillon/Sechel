@@ -25,7 +25,7 @@ async function createUserAction(
   return null;
 }
 
-export function UserForm({ onSuccess }: { onSuccess?: () => void }) {
+export function UserForm() {
   const [state, formAction, pending] = useActionState(createUserAction, null);
 
   // If success, clear the form and notify parent

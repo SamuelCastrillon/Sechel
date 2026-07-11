@@ -94,8 +94,7 @@ describe('panel/actions — login flow integration', () => {
 
     await t.client.execute({
       sql: `UPDATE users SET credential_hash = ?, username = 'testadmin' WHERE id = ?`,
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-      args: [hashed, adminUser.id as number],
+      args: [hashed, adminUser.id],
     });
 
     // Now test password verification directly
