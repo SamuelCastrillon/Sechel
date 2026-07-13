@@ -10,8 +10,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@sechel-mcp/core': path.resolve(process.cwd(), '../core/src'),
-      '@sechel/mcp-server': path.resolve(process.cwd(), '../mcp-server/src'),
+      '@sechel-mcp/core': path.resolve(process.cwd(), '../../packages/core/src'),
+      '@sechel-mcp/mcp-server': path.resolve(process.cwd(), '../../packages/mcp-server/src'),
     },
   },
 });

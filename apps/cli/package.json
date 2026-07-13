@@ -26,11 +26,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@sechel-mcp/core": "workspace:*",
-    "@sechel/mcp-server": "workspace:*",
-    "hono": "^4.7.0"
+    "@sechel-mcp/mcp-server": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

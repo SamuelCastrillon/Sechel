@@ -14,12 +14,17 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@sechel-mcp/core": ["../../packages/core/src/index.ts"],
+      "@sechel-mcp/mcp-server": ["../../packages/mcp-server/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "__tests__"],
   "references": [
-    { "path": "../core" },
-    { "path": "../mcp-server" }
+    { "path": "../../packages/core" },
+    { "path": "../../packages/mcp-server" }
   ]
 }

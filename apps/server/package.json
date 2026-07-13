@@ -16,7 +16,7 @@
     "@hono/node-server": "^1.13.0",
     "@modelcontextprotocol/sdk": "latest",
     "@sechel-mcp/core": "workspace:*",
-    "@sechel/mcp-server": "workspace:*",
+    "@sechel-mcp/mcp-server": "workspace:*",
     "hono": "^4.7.0"
   },
   "devDependencies": {
