@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Kysely } from 'kysely';
-import type { CortexDB } from '@sechel/core';
+import type { CortexDB } from '@sechel-mcp/core';
 
 import { registerPing } from './ping.js';
 import { registerMemSave } from './mem_save.js';

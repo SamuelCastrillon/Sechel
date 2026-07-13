@@ -1,7 +1,6 @@
 {
-  "name": "@sechel/mcp-server",
+  "name": "@sechel-mcp/mcp-server",
   "version": "0.3.0",
-  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,7 +24,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@sechel/core": "workspace:*",
+    "@sechel-mcp/core": "^0.3.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

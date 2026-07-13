@@ -4,7 +4,7 @@ import {
   getObservationSchema,
   actorFromAuthInfo,
   type GetObservationInput,
-} from '@sechel/core';
+} from '@sechel-mcp/core';
 import type { ToolContext } from './index.js';
 import { ok, error } from './utils.js';
 

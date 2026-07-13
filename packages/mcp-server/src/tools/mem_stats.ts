@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getStats, actorFromAuthInfo } from '@sechel/core';
+import { getStats, actorFromAuthInfo } from '@sechel-mcp/core';
 import type { ToolContext } from './index.js';
 import { ok, error } from './utils.js';
 

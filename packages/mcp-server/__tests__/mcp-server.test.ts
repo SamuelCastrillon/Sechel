@@ -3,7 +3,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { createSechelServer } from '../src/index.js';
 import type { Kysely } from 'kysely';
-import type { CortexDB } from '@sechel/core';
+import type { CortexDB } from '@sechel-mcp/core';
 
 // ---------------------------------------------------------------------------
 // P-1.2 RED: createSechelServer with mocked transport registers 24 tools

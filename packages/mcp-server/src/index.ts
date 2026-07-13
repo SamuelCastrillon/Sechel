@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Kysely } from 'kysely';
-import type { CortexDB } from '@sechel/core';
+import type { CortexDB } from '@sechel-mcp/core';
 import { registerAllTools, type ToolContext } from './tools/index.js';
 
 /**

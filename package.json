@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "@libsql/client": "^0.15.0",
-    "@sechel/core": "workspace:*",
+    "@sechel-mcp/core": "workspace:*",
     "@modelcontextprotocol/sdk": "latest",
     "@next/env": "^15.0.0",
     "hash-wasm": "^4.11.0",

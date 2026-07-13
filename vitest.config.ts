@@ -10,7 +10,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(process.cwd()),
-      '@sechel/core': path.resolve(process.cwd(), 'packages/core/src'),
+      '@sechel-mcp/core': path.resolve(process.cwd(), 'packages/core/src'),
       'server-only': path.resolve(process.cwd(), '__tests__/server-only-shim.ts'),
     },
   },

@@ -1,7 +1,6 @@
 {
-  "name": "@sechel/cli",
+  "name": "@sechel-mcp/cli",
   "version": "0.3.0",
-  "private": true,
   "type": "module",
   "bin": {
     "sechel": "./bin/sechel.js"
@@ -29,7 +28,7 @@
   "dependencies": {
     "@hono/node-server": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@sechel/core": "workspace:*",
+    "@sechel-mcp/core": "workspace:*",
     "@sechel/mcp-server": "workspace:*",
     "hono": "^4.7.0"
   },

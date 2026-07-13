@@ -145,6 +145,7 @@ vite.config.ts.timestamp-*
 # Agent skill-registry cache (not project code)
 .atl/
 .vercel
+.npmrc
 
 # Sechel local dev database (default libSQL file)
 .sechel-local.db

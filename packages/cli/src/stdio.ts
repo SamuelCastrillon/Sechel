@@ -1,6 +1,6 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createSechelServer } from '@sechel/mcp-server';
-import { createDb } from '@sechel/core';
+import { createDb } from '@sechel-mcp/core';
 import path from 'node:path';
 import { ensureConfigDir, loadConfig, getDefaultDbPath } from './config.js';
 

@@ -3,9 +3,9 @@ import { serve } from '@hono/node-server';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { createSechelServer } from '@sechel/mcp-server';
 import type { Kysely } from 'kysely';
-import type { CortexDB } from '@sechel/core';
+import type { CortexDB } from '@sechel-mcp/core';
 import path from 'node:path';
-import { createDb } from '@sechel/core';
+import { createDb } from '@sechel-mcp/core';
 import { ensureConfigDir, loadConfig, getDefaultDbPath } from './config.js';
 
 /**

@@ -3,7 +3,7 @@ import {
   suggestTopicKey,
   suggestTopicKeySchema,
   type SuggestTopicKeyInput,
-} from '@sechel/core';
+} from '@sechel-mcp/core';
 import { ok, error } from './utils.js';
 
 export function registerMemSuggestTopicKey(server: McpServer): void {

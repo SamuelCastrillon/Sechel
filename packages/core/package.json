@@ -1,7 +1,6 @@
 {
-  "name": "@sechel/core",
+  "name": "@sechel-mcp/core",
   "version": "0.3.0",
-  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

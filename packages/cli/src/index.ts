@@ -1,5 +1,5 @@
 /**
- * @sechel/cli — Sechel CLI entry point.
+ * @sechel-mcp/cli — Sechel CLI entry point.
  *
  * Usage:
  *   sechel          Start stdio MCP server with local SQLite

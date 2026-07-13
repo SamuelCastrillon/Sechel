@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { createDb } from '@sechel/core';
+import { createDb } from '@sechel-mcp/core';
 import type { Kysely } from 'kysely';
-import type { CortexDB } from '@sechel/core';
+import type { CortexDB } from '@sechel-mcp/core';
 
 // ---------------------------------------------------------------------------
 // P-4.2 RED: Stdio mode + HTTP mode
