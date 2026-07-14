@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { createSechelServer } from '@sechel-mcp/mcp-server';
-import { createDb } from '@sechel-mcp/core';
+import { createDb, verifyToken } from '@sechel-mcp/core';
 import { registerAdminRoutes } from './admin.js';
 
 // ---------------------------------------------------------------------------
@@ -25,18 +25,6 @@ export function createApp(): Hono<{ Bindings: Env }> {
   // ---- Admin routes -------------------------------------------------------
   registerAdminRoutes(app);
 
-  // ---- Admin token middleware (applies to /mcp/* only) ----------------------
-  app.use('/mcp/*', async (c, next) => {
-    const adminToken = c.env?.SECHEL_ADMIN_TOKEN ?? process.env.SECHEL_ADMIN_TOKEN;
-    if (adminToken) {
-      const auth = c.req.header('Authorization');
-      if (!auth?.startsWith('Bearer ') || auth.slice(7) !== adminToken) {
-        return c.json({ error: 'Unauthorized' }, 401);
-      }
-    }
-    await next();
-  });
-
   // ---- MCP StreamableHTTP endpoint ----------------------------------------
   // Creates a fresh transport + server per request (stateless mode).
   // Suitable for both Node.js and edge runtimes (CF Workers, Deno, Bun).
@@ -49,13 +37,23 @@ export function createApp(): Hono<{ Bindings: Env }> {
   // -------------------------------------------------------------------------
   app.post('/mcp', async (c) => {
     const env = c.env;
-
-    const transport = new WebStandardStreamableHTTPServerTransport();
+    const authHeader = c.req.header('Authorization');
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
 
     const db = await createDb({
       url: env?.DATABASE_URL ?? process.env.DATABASE_URL ?? '',
       authToken: env?.DATABASE_AUTH_TOKEN ?? process.env.DATABASE_AUTH_TOKEN,
     });
+
+    const authInfo = await verifyToken(
+      bearerToken,
+      db,
+      env?.TENANT_ID ?? process.env.TENANT_ID ?? 'default',
+      env?.SECHEL_DEV_TOKEN ?? process.env.SECHEL_DEV_TOKEN,
+    );
+    if (!authInfo) return c.json({ error: 'Unauthorized' }, 401);
+
+    const transport = new WebStandardStreamableHTTPServerTransport();
 
     await createSechelServer({
       transport,
@@ -64,7 +62,7 @@ export function createApp(): Hono<{ Bindings: Env }> {
       auth: { required: true },
     });
 
-    return transport.handleRequest(c.req.raw);
+    return transport.handleRequest(c.req.raw, { authInfo });
   });
 
   return app;

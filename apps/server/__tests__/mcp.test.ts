@@ -1,5 +1,10 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { Hono } from 'hono';
+import { sql } from 'kysely';
+import { createHash } from 'node:crypto';
+import { unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Env } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
@@ -7,16 +12,49 @@ import type { Env } from '../src/index.js';
 // P-2.3   : Hono app with StreamableHTTP transport + admin routes
 // ---------------------------------------------------------------------------
 
-const testEnv: Env = {
-  DATABASE_URL: ':memory:',
-  TENANT_ID: 'test',
-};
+// Temp file-based DB so we can seed it before tests
+const TEST_DB_PATH = join(tmpdir(), `sechel-test-mcp-${Date.now()}.db`);
+const TEST_TOKEN = 'sk-test-token-81327f1b9a8c4d5e';
+const TEST_TOKEN_HASH = createHash('sha256').update(TEST_TOKEN, 'utf-8').digest('hex');
 
+let testEnv: Env;
 let createApp: () => Hono<{ Bindings: Env }>;
 
 beforeAll(async () => {
+  // Seed the temp DB with an admin user and a token
+  const { createDb } = await import('@sechel-mcp/core');
+  const db = await createDb({ url: `file:${TEST_DB_PATH}` });
+
+  // Create admin user (is_active = 1 by default with the fixed migration)
+  await sql`
+    INSERT INTO users (tenant_id, username, role, credential_hash, is_active)
+    VALUES ('test', 'test-admin', 'admin', 'unused', 1)
+  `.execute(db);
+
+  // Create a token for this user
+  const user = await sql<{ id: number }>`
+    SELECT id FROM users WHERE tenant_id = 'test' AND username = 'test-admin'
+  `.execute(db);
+  const userId = user.rows[0].id;
+
+  await sql`
+    INSERT INTO user_tokens (tenant_id, user_id, prefix, token_hash, description)
+    VALUES ('test', ${userId}, 'sk_test_', ${TEST_TOKEN_HASH}, 'test token')
+  `.execute(db);
+
+  await db.destroy();
+
+  testEnv = {
+    DATABASE_URL: `file:${TEST_DB_PATH}`,
+    TENANT_ID: 'test',
+  };
+
   const mod = await import('../src/index.js');
   createApp = mod.createApp;
+});
+
+afterAll(() => {
+  try { unlinkSync(TEST_DB_PATH); } catch { /* ignore */ }
 });
 
 // ---- Admin routes ---------------------------------------------------------
@@ -83,6 +121,20 @@ const mcpHeaders = {
   'Content-Type': 'application/json',
   Accept: 'application/json, text/event-stream',
   'MCP-Protocol-Version': '2025-11-05',
+  Authorization: `Bearer ${TEST_TOKEN}`,
+};
+
+// Headers for error-case tests (missing Content-Type or Accept) — still include auth
+const mcpHeadersNoContentType = {
+  Accept: 'application/json, text/event-stream',
+  'MCP-Protocol-Version': '2025-11-05',
+  Authorization: `Bearer ${TEST_TOKEN}`,
+};
+
+const mcpHeadersNoAccept = {
+  'Content-Type': 'application/json',
+  'MCP-Protocol-Version': '2025-11-05',
+  Authorization: `Bearer ${TEST_TOKEN}`,
 };
 
 describe('MCP endpoint', () => {
@@ -148,10 +200,7 @@ describe('MCP endpoint', () => {
       '/mcp',
       {
         method: 'POST',
-        headers: {
-          Accept: 'application/json, text/event-stream',
-          'MCP-Protocol-Version': '2025-11-05',
-        },
+        headers: mcpHeadersNoContentType,
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 'test-err-1',
@@ -176,10 +225,7 @@ describe('MCP endpoint', () => {
       '/mcp',
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'MCP-Protocol-Version': '2025-11-05',
-        },
+        headers: mcpHeadersNoAccept,
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 'test-err-2',

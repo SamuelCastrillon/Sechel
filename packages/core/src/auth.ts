@@ -34,16 +34,18 @@ function getEnv(name: string, legacyName: string): string | undefined {
  * @param bearerToken - The bearer token string (undefined/missing = reject)
  * @param db - A connected Kysely instance
  * @param tenantId - The tenant ID for scoping
+ * @param devTokenOverride - Optional dev token override (from env bindings like Hono's c.env)
  */
 export async function verifyToken(
   bearerToken: string | undefined,
   db: Kysely<CortexDB>,
   tenantId: string,
+  devTokenOverride?: string,
 ): Promise<AuthInfo | undefined> {
   if (!bearerToken) return undefined;
 
   // Step 1: Dev bypass (only when SECHEL_DEV_TOKEN / CORTEXT_DEV_TOKEN is explicitly set)
-  const devToken = getEnv('SECHEL_DEV_TOKEN', 'CORTEXT_DEV_TOKEN');
+  const devToken = devTokenOverride ?? getEnv('SECHEL_DEV_TOKEN', 'CORTEXT_DEV_TOKEN');
   if (devToken && devToken.length > 0 && bearerToken === devToken) {
     const res = await sql<{ id: number; role: string; username: string }>`
       SELECT id, role, username FROM users

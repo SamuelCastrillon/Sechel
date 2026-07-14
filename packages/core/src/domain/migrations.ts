@@ -216,7 +216,9 @@ CREATE TABLE IF NOT EXISTS instance_settings (
   PRIMARY KEY (key)
 );
 
-ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 0;`,
+ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1;
+
+UPDATE users SET is_active = 1 WHERE is_active IS NULL OR is_active = 0;`,
   },
 ];
 
