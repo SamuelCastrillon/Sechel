@@ -53,7 +53,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Copy only production artifacts
 COPY --from=builder --chown=sechel:nodejs /app/apps/server/dist ./dist
 COPY --from=builder --chown=sechel:nodejs /app/packages/core/dist ./node_modules/@sechel-mcp/core
-COPY --from=builder --chown=sechel:nodejs /app/packages/mcp-server/dist ./node_modules/@sechel/mcp-server
+COPY --from=builder --chown=sechel:nodejs /app/packages/mcp-server/dist ./node_modules/@sechel-mcp/mcp-server
 COPY --from=builder --chown=sechel:nodejs /app/node_modules/.pnpm ./node_modules/.pnpm
 COPY --from=builder --chown=sechel:nodejs /app/node_modules/.modules.yaml ./node_modules/
 

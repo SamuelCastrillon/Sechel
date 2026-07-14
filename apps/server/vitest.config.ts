@@ -9,7 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@sechel-mcp/core': new URL('../../packages/core/src', import.meta.url).pathname,
-      '@sechel/mcp-server': new URL('../../packages/mcp-server/src', import.meta.url).pathname,
+      '@sechel-mcp/mcp-server': new URL('../../packages/mcp-server/src', import.meta.url).pathname,
     },
   },
 });
