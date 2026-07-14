@@ -17,7 +17,9 @@
     "@modelcontextprotocol/sdk": "latest",
     "@sechel-mcp/core": "workspace:*",
     "@sechel-mcp/mcp-server": "workspace:*",
-    "hono": "^4.7.0"
+    "hash-wasm": "^4.11.0",
+    "hono": "^4.7.0",
+    "jose": "^5.9.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

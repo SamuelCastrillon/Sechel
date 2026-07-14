@@ -7,4 +7,3 @@ export * from './validation.js';
 export * from './normalize.js';
 export * from './types.js';
 export * from './migrations.js';
-export * from './seed.js';

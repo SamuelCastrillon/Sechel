@@ -136,9 +136,15 @@ importers:
       '@sechel-mcp/mcp-server':
         specifier: workspace:*
         version: link:../../packages/mcp-server
+      hash-wasm:
+        specifier: ^4.11.0
+        version: 4.12.0
       hono:
         specifier: ^4.7.0
         version: 4.12.28
+      jose:
+        specifier: ^5.9.0
+        version: 5.10.0
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -158,12 +164,6 @@ importers:
       '@libsql/client':
         specifier: ^0.15.0
         version: 0.15.15
-      hash-wasm:
-        specifier: ^4.11.0
-        version: 4.12.0
-      jose:
-        specifier: ^5.9.0
-        version: 5.10.0
       kysely:
         specifier: ^0.28.0
         version: 0.28.17

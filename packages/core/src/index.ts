@@ -12,8 +12,7 @@ export {
 } from './auth.js';
 export type { Actor, RequiredLevel } from './auth.js';
 
-export { generateApiToken, hashToken } from './tokens.js';
-export { hashPassword, verifyPassword } from './password.js';
+export { hashToken } from './tokens.js';
 
 export * from './domain/index.js';
 

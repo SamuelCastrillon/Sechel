@@ -1,6 +1,6 @@
 import type { Client } from '@libsql/client';
-import type { UserRow } from '../types.js';
-import { hashPassword } from '../password.js';
+import type { UserRow } from '@sechel-mcp/core';
+import { hashPassword } from './auth.js';
 
 /**
  * Bootstrap the admin user from ADMIN_USERNAME/ADMIN_PASSWORD env vars.

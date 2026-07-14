@@ -1,13 +1,42 @@
+import { randomBytes, createHash } from 'node:crypto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createClient } from '@libsql/client';
 import { runMigrations } from '../src/domain/migrations';
-import { seedAdmin } from '../src/domain/seed';
-import { generateApiToken } from '../src/tokens';
 import type { Kysely } from 'kysely';
 import type { Client } from '@libsql/client';
 import type { CortexDB } from '../src/types';
 
 const TENANT_ID = 'test-tenant';
+
+/** Inline helper — replaces the now-removed core generateApiToken */
+function generateApiToken(): { raw: string; hash: string; prefix: string } {
+  const raw = randomBytes(40).toString('hex');
+  const hash = createHash('sha256').update(raw, 'utf-8').digest('hex');
+  const prefix = 'sk_' + raw.slice(0, 7);
+  return { raw, hash, prefix };
+}
+
+/** Inline helper — inserts an admin user directly, replaces the now-removed core seedAdmin */
+async function seedAdmin(
+  client: Client,
+  tenantId: string,
+  credentials: { username: string; password: string },
+): Promise<void> {
+  // Use a simple hash for testing — credential content doesn't matter for token tests
+  const fakeHash = createHash('sha256').update(credentials.password).digest('hex');
+  await client.execute({
+    sql: `INSERT INTO users (tenant_id, username, role, credential_hash, is_active, created_at)
+          VALUES (?, ?, 'admin', ?, 1, datetime('now'))
+          ON CONFLICT DO NOTHING`,
+    args: [tenantId, credentials.username, fakeHash],
+  });
+  // Ensure registration_enabled setting exists
+  await client.execute({
+    sql: `INSERT INTO instance_settings (key, value, updated_at)
+          VALUES ('registration_enabled', '0', datetime('now'))
+          ON CONFLICT DO NOTHING`,
+  });
+}
 
 async function createTestDb(): Promise<{ db: Kysely<CortexDB>; client: Client }> {
   const url = ':memory:';
