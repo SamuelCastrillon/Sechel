@@ -1,14 +1,12 @@
 {
   "functions": {
     "api/mcp.ts": {
-      "runtime": "nodejs@20.x",
       "maxDuration": 30
     }
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/mcp" }
   ],
-  "installCommand": "pnpm install",
-  "buildCommand": "pnpm --filter @sechel/server build",
-  "outputDirectory": "."
+  "installCommand": "cd ../.. && pnpm install",
+  "buildCommand": "cd ../.. && pnpm --filter @sechel/server build"
 }
