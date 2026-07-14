@@ -214,8 +214,9 @@ docs/
 - [x] Auth real: Argon2id, JWT, SHA-256 tokens API
 - [x] Panel admin: login, registro, dashboard, sidebar
 - [x] Rebranding a Sechel (v0.1.0)
-- [ ] Panel /users, /settings, /apitokens (v0.2.0)
+- [x] Panel /users, /settings, /apitokens (v0.2.0 — spec ready)
 - [ ] Conflict surfacing (`mem_save` → `FindCandidates` → `memory_relations`)
+- [ ] Plataforma-agnóstico + CLI npm + Docker (v0.3.0 — [`docs/v0.3.0-platform.md`](docs/v0.3.0-platform.md))
 
 ---
 

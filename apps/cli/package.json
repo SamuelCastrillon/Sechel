@@ -1,0 +1,39 @@
+{
+  "name": "@sechel-mcp/cli",
+  "version": "0.3.1",
+  "type": "module",
+  "bin": {
+    "sechel": "./bin/sechel.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@sechel-mcp/core": "workspace:*",
+    "@sechel-mcp/mcp-server": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "kysely": "^0.28.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.1.0"
+  }
+}

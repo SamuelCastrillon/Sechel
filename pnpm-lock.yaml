@@ -17,6 +17,9 @@ importers:
       '@next/env':
         specifier: ^15.0.0
         version: 15.5.20
+      '@sechel-mcp/core':
+        specifier: workspace:*
+        version: link:packages/core
       hash-wasm:
         specifier: ^4.11.0
         version: 4.12.0
@@ -87,6 +90,118 @@ importers:
       tsx:
         specifier: ^4.19.0
         version: 4.23.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)(lightningcss@1.32.0)
+
+  apps/cli:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+      '@sechel-mcp/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@sechel-mcp/mcp-server':
+        specifier: workspace:*
+        version: link:../../packages/mcp-server
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      kysely:
+        specifier: ^0.28.0
+        version: 0.28.17
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)(lightningcss@1.32.0)
+
+  apps/server:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.0
+        version: 1.19.14(hono@4.12.28)
+      '@modelcontextprotocol/sdk':
+        specifier: latest
+        version: 1.29.0(zod@3.25.76)
+      '@sechel-mcp/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@sechel-mcp/mcp-server':
+        specifier: workspace:*
+        version: link:../../packages/mcp-server
+      hash-wasm:
+        specifier: ^4.11.0
+        version: 4.12.0
+      hono:
+        specifier: ^4.7.0
+        version: 4.12.28
+      jose:
+        specifier: ^5.9.0
+        version: 5.10.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)(lightningcss@1.32.0)
+
+  packages/core:
+    dependencies:
+      '@libsql/client':
+        specifier: ^0.15.0
+        version: 0.15.15
+      kysely:
+        specifier: ^0.28.0
+        version: 0.28.17
+      kysely-libsql:
+        specifier: ^0.7.1
+        version: 0.7.1(kysely@0.28.17)
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)(lightningcss@1.32.0)
+
+  packages/mcp-server:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+      '@sechel-mcp/core':
+        specifier: ^0.3.0
+        version: 0.3.0
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      kysely:
+        specifier: ^0.28.0
+        version: 0.28.17
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -932,6 +1047,9 @@ packages:
 
   '@rushstack/eslint-patch@1.16.1':
     resolution: {integrity: sha512-TvZbIpeKqGQQ7X0zSCvPH9riMSFQFSggnfBjFZ1mEoILW+UuXCKwOoPcgjMwiUtRqFZ8jWhPJc4um14vC6I4ag==}
+
+  '@sechel-mcp/core@0.3.0':
+    resolution: {integrity: sha512-ZUNVLDxi8k8LQpjbTbKMe1jkWuhuykFqv3GvegCtaC8KzQEZ2LTslEucJXhr1ec7afoieXnfNZlq0Oag6UiF5g==}
 
   '@swc/helpers@0.5.15':
     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
@@ -3553,6 +3671,18 @@ snapshots:
   '@rtsao/scc@1.1.0': {}
 
   '@rushstack/eslint-patch@1.16.1': {}
+
+  '@sechel-mcp/core@0.3.0':
+    dependencies:
+      '@libsql/client': 0.15.15
+      hash-wasm: 4.12.0
+      jose: 5.10.0
+      kysely: 0.28.17
+      kysely-libsql: 0.7.1(kysely@0.28.17)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@swc/helpers@0.5.15':
     dependencies:
