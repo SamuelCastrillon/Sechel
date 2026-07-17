@@ -18,6 +18,7 @@
     "dist"
   ],
   "scripts": {
+    "prepublishOnly": "tsc -b",
     "build": "tsc -b",
     "dev": "tsc -b --watch",
     "clean": "rm -rf dist",
