@@ -1,6 +1,6 @@
 {
   "name": "@sechel-mcp/cli",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "bin": {
     "sechel": "./bin/sechel.js"
@@ -27,8 +27,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@sechel-mcp/core": "workspace:*",
-    "@sechel-mcp/mcp-server": "workspace:*"
+    "@sechel-mcp/core": "^0.3.0",
+    "@sechel-mcp/mcp-server": "^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
