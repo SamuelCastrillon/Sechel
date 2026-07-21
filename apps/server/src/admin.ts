@@ -27,9 +27,11 @@ export async function bootstrapAdmin(): Promise<void> {
     const { createClient } = process.env.VERCEL === '1'
       ? await import('@libsql/client/web')
       : await import('@libsql/client');
+    const { runMigrations } = await import('@sechel-mcp/core');
 
     const client = createClient({ url, authToken });
     try {
+      await runMigrations(client);
       await seedAdmin(client, tenantId, { username: adminUsername, password: adminPassword });
     } finally {
       client.close();
@@ -37,11 +39,16 @@ export async function bootstrapAdmin(): Promise<void> {
   }
 }
 
-let seeded = false;
-async function ensureSeeded(): Promise<void> {
-  if (seeded) return;
-  seeded = true;
-  await bootstrapAdmin();
+let seededPromise: Promise<void> | null = null;
+
+export async function ensureSeeded(): Promise<void> {
+  if (!seededPromise) {
+    seededPromise = bootstrapAdmin().catch((err) => {
+      seededPromise = null;
+      throw err;
+    });
+  }
+  return seededPromise;
 }
 
 /**

@@ -3,7 +3,7 @@ import { serve } from '@hono/node-server';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { createSechelServer } from '@sechel-mcp/mcp-server';
 import { createDb, verifyToken } from '@sechel-mcp/core';
-import { registerAdminRoutes, bootstrapAdmin } from './admin.js';
+import { registerAdminRoutes, bootstrapAdmin, ensureSeeded } from './admin.js';
 
 // ---------------------------------------------------------------------------
 // Env — typed bindings for both CF Workers and Node.js
@@ -99,9 +99,7 @@ const isDirectRun =
     import.meta.url.endsWith(`/${process.argv[1]}`));
 
 if (isDirectRun) {
-  // Seed admin on startup for long-running Node.js deployments (Docker/VPS).
-  // In serverless (Vercel/CF Workers), seeding happens lazily via login.
-  bootstrapAdmin().catch((err) =>
+  ensureSeeded().catch((err) =>
     console.error('bootstrapAdmin failed:', err instanceof Error ? err.message : err)
   );
 
