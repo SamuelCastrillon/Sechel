@@ -17,21 +17,29 @@ const TEST_DB_PATH = join(tmpdir(), `sechel-test-mcp-${Date.now()}.db`);
 const TEST_TOKEN = 'sk-test-token-81327f1b9a8c4d5e';
 const TEST_TOKEN_HASH = createHash('sha256').update(TEST_TOKEN, 'utf-8').digest('hex');
 
+const TEST_SESSION_SECRET = 'test-secret-key-for-testing-purposes-only';
+
 let testEnv: Env;
 let createApp: () => Hono<{ Bindings: Env }>;
 
 beforeAll(async () => {
+  process.env.SESSION_SECRET = TEST_SESSION_SECRET;
+
   // Seed the temp DB with an admin user and a token
+  const { createClient } = await import('@libsql/client');
+  const client = createClient({ url: `file:${TEST_DB_PATH}` });
+
+  // Run migrations so the users table exists, then seed admin
+  const { runMigrations } = await import('@sechel-mcp/core');
+  await runMigrations(client);
+
+  const { seedAdmin } = await import('../src/admin/seed.js');
+  await seedAdmin(client, 'test', { username: 'test-admin', password: 'test-password' });
+
+  // Create a token for this user
   const { createDb } = await import('@sechel-mcp/core');
   const db = await createDb({ url: `file:${TEST_DB_PATH}` });
 
-  // Create admin user (is_active = 1 by default with the fixed migration)
-  await sql`
-    INSERT INTO users (tenant_id, username, role, credential_hash, is_active)
-    VALUES ('test', 'test-admin', 'admin', 'unused', 1)
-  `.execute(db);
-
-  // Create a token for this user
   const user = await sql<{ id: number }>`
     SELECT id FROM users WHERE tenant_id = 'test' AND username = 'test-admin'
   `.execute(db);
@@ -43,6 +51,7 @@ beforeAll(async () => {
   `.execute(db);
 
   await db.destroy();
+  client.close();
 
   testEnv = {
     DATABASE_URL: `file:${TEST_DB_PATH}`,
@@ -68,7 +77,7 @@ describe('Admin routes', () => {
     expect(await res.json()).toEqual({ status: 'ok' });
   });
 
-  it('POST /admin/auth/login returns 501 Not Implemented', async () => {
+  it('POST /admin/auth/login returns 400 when body is missing', async () => {
     const app = createApp();
     const res = await app.request(
       '/admin/auth/login',
@@ -76,8 +85,44 @@ describe('Admin routes', () => {
       testEnv,
     );
 
-    expect(res.status).toBe(501);
-    expect(await res.json()).toEqual({ error: 'Not implemented yet' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'username and password are required' });
+  });
+
+  it('POST /admin/auth/login returns 401 for invalid credentials', async () => {
+    const app = createApp();
+    const res = await app.request(
+      '/admin/auth/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'wrong', password: 'wrong' }),
+      },
+      testEnv,
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Invalid credentials' });
+  });
+
+  it('POST /admin/auth/login returns 200 with token for valid credentials', async () => {
+    const app = createApp();
+    const res = await app.request(
+      '/admin/auth/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'test-admin', password: 'test-password' }),
+      },
+      { ...testEnv, ADMIN_PASSWORD: 'test-password' },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body).toHaveProperty('token');
+    expect(body).toHaveProperty('user');
+    const user = body.user as Record<string, unknown>;
+    expect(user.username).toBe('test-admin');
   });
 });
 

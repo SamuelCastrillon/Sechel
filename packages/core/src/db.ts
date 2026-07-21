@@ -1,6 +1,6 @@
 import { Kysely } from 'kysely';
 import { LibsqlDialect } from 'kysely-libsql';
-import { createClient } from '@libsql/client';
+import type { Client } from '@libsql/client';
 import { runMigrations } from './domain/migrations.js';
 import type { CortexDB } from './types.js';
 
@@ -59,10 +59,14 @@ export async function createDb(options: DbOptions): Promise<Kysely<CortexDB>> {
   }
 
   const runtime = resolveRuntime(options);
-  const client = createClient({
+  const { createClient } = runtime === 'edge'
+    ? await import('@libsql/client/web')
+    : await import('@libsql/client');
+
+  const client: Client = createClient({
     url: options.url,
     authToken: options.authToken,
-  });
+  }) as unknown as Client;
 
   // Run schema migrations idempotently whenever a database is created.
   // Safe for local SQLite, :memory:, and remote Turso databases.

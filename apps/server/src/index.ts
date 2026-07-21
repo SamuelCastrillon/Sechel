@@ -3,7 +3,7 @@ import { serve } from '@hono/node-server';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { createSechelServer } from '@sechel-mcp/mcp-server';
 import { createDb, verifyToken } from '@sechel-mcp/core';
-import { registerAdminRoutes } from './admin.js';
+import { registerAdminRoutes, bootstrapAdmin } from './admin.js';
 
 // ---------------------------------------------------------------------------
 // Env — typed bindings for both CF Workers and Node.js
@@ -13,6 +13,7 @@ export type Env = {
   DATABASE_AUTH_TOKEN?: string;
   TENANT_ID?: string;
   PORT?: string;
+  SECHEL_DEV_TOKEN?: string;
   SECHEL_ADMIN_TOKEN?: string;
 };
 
@@ -22,7 +23,7 @@ export type Env = {
 export function createApp(): Hono<{ Bindings: Env }> {
   const app = new Hono<{ Bindings: Env }>();
 
-  // ---- Admin routes -------------------------------------------------------
+    // ---- Admin maintenance routes ------------------------------------------
   registerAdminRoutes(app);
 
   // ---- MCP StreamableHTTP endpoint ----------------------------------------
@@ -67,6 +68,12 @@ export function createApp(): Hono<{ Bindings: Env }> {
 
   return app;
 }
+
+// ---------------------------------------------------------------------------
+// Bootstrap admin user from env (ADMIN_USERNAME / ADMIN_PASSWORD)
+// Runs once at module init. Idempotent — safe for cold starts.
+// ---------------------------------------------------------------------------
+bootstrapAdmin();
 
 // ---------------------------------------------------------------------------
 // Global app instance — reused by serve() and CF Workers export
