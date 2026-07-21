@@ -27,8 +27,8 @@ function dbUrl(env: Partial<Env>): string {
 function dbAuthToken(env: Partial<Env>): string | undefined {
   return env?.DATABASE_AUTH_TOKEN ?? env?.TURSO_AUTH_TOKEN ?? process.env.DATABASE_AUTH_TOKEN ?? process.env.TURSO_AUTH_TOKEN;
 }
-function dbRuntime(env: Partial<Env>): 'edge' | 'node' {
-  return (env?.VERCEL ?? isVercel()) ? 'edge' : 'node';
+function dbRuntime(_env: Partial<Env>): 'edge' | 'node' {
+  return isVercel() ? 'edge' : 'node';
 }
 
 // ---------------------------------------------------------------------------
