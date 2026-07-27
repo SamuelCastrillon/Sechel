@@ -69,12 +69,14 @@ afterAll(() => {
 // ---- Admin routes ---------------------------------------------------------
 
 describe('Admin routes', () => {
-  it('GET /admin/health returns 200 with status ok', async () => {
+  it('GET /admin/health returns 200 with status ok and time', async () => {
     const app = createApp();
     const res = await app.request('/admin/health', {}, testEnv);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok' });
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.status).toBe('ok');
+    expect(typeof body.time).toBe('number');
   });
 
   it('POST /admin/auth/login returns 400 when body is missing', async () => {
