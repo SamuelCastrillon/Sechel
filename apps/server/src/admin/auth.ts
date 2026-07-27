@@ -37,8 +37,8 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 // Draft session-token helpers (jose-based, no Next.js / server-only)
 // ---------------------------------------------------------------------------
 
-function getSecret(): Uint8Array {
-  const raw = process.env.JWT_SECRET;
+function getSecret(secret?: string): Uint8Array {
+  const raw = secret ?? process.env.JWT_SECRET;
   if (!raw) throw new Error('JWT_SECRET environment variable is required');
   return new TextEncoder().encode(raw);
 }
@@ -46,30 +46,38 @@ function getSecret(): Uint8Array {
 /**
  * Create a signed JWT session token for the given user.
  *
- * Draft — the exact payload shape and expiry are TBD.
+ * Accepts an optional `secret` parameter for testing / custom secrets.
+ * Falls back to process.env.JWT_SECRET when omitted.
  */
-export async function createSessionToken(payload: {
-  userId: number;
-  tenantId: string;
-  role: string;
-}): Promise<string> {
-  const secret = getSecret();
+export async function createSessionToken(
+  payload: {
+    userId: number;
+    tenantId: string;
+    role: string;
+  },
+  secret?: string,
+): Promise<string> {
+  const key = getSecret(secret);
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('24h')
-    .sign(secret);
+    .sign(key);
 }
 
 /**
  * Verify and decode a signed JWT session token.
  *
+ * Accepts an optional `secret` parameter for testing / custom secrets.
+ * Falls back to process.env.JWT_SECRET when omitted.
+ *
  * Returns the verified payload, or throws if the token is invalid / expired.
  */
 export async function verifySessionToken(
   token: string,
+  secret?: string,
 ): Promise<{ userId: number; tenantId: string; role: string }> {
-  const secret = getSecret();
-  const { payload } = await jwtVerify(token, secret);
+  const key = getSecret(secret);
+  const { payload } = await jwtVerify(token, key);
   return payload as unknown as { userId: number; tenantId: string; role: string };
 }
