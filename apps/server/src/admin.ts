@@ -1,7 +1,26 @@
 import { Hono } from 'hono';
+import type { Kysely } from 'kysely';
+import type { CortexDB } from '@sechel-mcp/core';
 import type { Env } from './index.js';
 import { seedAdmin } from './admin/seed.js';
 import { createSessionToken, verifyPassword } from './admin/auth.js';
+import { authMiddleware } from './admin/auth-middleware.js';
+import { registerUserRoutes } from './admin/users.js';
+import { registerSettingsRoutes } from './admin/settings.js';
+import { registerTokenRoutes } from './admin/tokens.js';
+import { createDb } from '@sechel-mcp/core';
+
+/**
+ * Options for registerAdminRoutes.
+ */
+export interface AdminRoutesOptions {
+  /** Shared Kysely instance to reuse across all admin handlers */
+  db?: Kysely<CortexDB>;
+  /** Mount prefix for admin routes (e.g. "/api/admin" or "/admin"). Defaults to "/admin" */
+  prefix?: string;
+  /** Override JWT secret (defaults to process.env.JWT_SECRET) */
+  jwtSecret?: string;
+}
 
 /**
  * Bootstrap the admin user from ADMIN_USERNAME / ADMIN_PASSWORD env vars.
@@ -52,18 +71,71 @@ export async function ensureSeeded(): Promise<void> {
 }
 
 /**
+ * Resolve the DB connection for a request.
+ *
+ * If a shared Kysely instance was provided via opts, return that.
+ * Otherwise, create a new connection from env vars (backward-compatible).
+ */
+async function getDbForRequest(
+  env: Partial<Env>,
+  sharedDb?: Kysely<CortexDB>,
+): Promise<Kysely<CortexDB>> {
+  if (sharedDb) return sharedDb;
+
+  const url = env?.DATABASE_URL ?? env?.TURSO_DATABASE_URL ?? process.env.DATABASE_URL ?? process.env.TURSO_DATABASE_URL ?? '';
+  const authToken = env?.DATABASE_AUTH_TOKEN ?? env?.TURSO_AUTH_TOKEN ?? process.env.DATABASE_AUTH_TOKEN ?? process.env.TURSO_AUTH_TOKEN;
+
+  if (!url) {
+    throw new Error('DATABASE_URL not configured');
+  }
+
+  return createDb({
+    url,
+    authToken,
+    runtime: process.env.VERCEL === '1' ? 'edge' : 'node',
+  });
+}
+
+/**
  * Register admin REST API routes on the Hono app.
  *
- * Routes:
- * - GET  /admin/health       — health check
- * - POST /admin/auth/login   — authenticate with username + password, returns JWT
+ * Applies JWT auth middleware to all admin routes except
+ * /health and /auth/login. Mounts user, settings, and token
+ * sub-routers under the configured prefix (default: /admin).
+ *
+ * If `opts.db` is provided, all admin handlers reuse the shared
+ * Kysely instance. Otherwise, each handler creates a per-request
+ * connection (backward-compatible).
  */
-export function registerAdminRoutes(app: Hono<{ Bindings: Env }>): void {
-  app.get('/admin/health', async (c) => {
+export function registerAdminRoutes(
+  app: Hono<{ Bindings: Env }>,
+  opts?: AdminRoutesOptions,
+): void {
+  const prefix = opts?.prefix ?? '/admin';
+
+  // Internal router — uses process.env since it may be mounted on a sub-path
+  // without direct access to parent Env bindings.
+  // Variables accessed via typed helpers (getUser/getDb) that cast internally.
+  const adminRouter = new Hono();
+
+  // Apply auth middleware to all admin routes (exempt paths handled internally)
+  adminRouter.use('/*', authMiddleware(opts?.jwtSecret));
+
+  // If shared db provided, set it in context for all handlers
+  if (opts?.db) {
+    adminRouter.use('/*', async (c, next) => {
+      (c as any).set('db', opts.db!);
+      await next();
+    });
+  }
+
+  // ---- Health check (always public) ----
+  adminRouter.get('/health', async (c) => {
     return c.json({ status: 'ok', time: Date.now() });
   });
 
-  app.post('/admin/auth/login', async (c) => {
+  // ---- Auth login (always public) ----
+  adminRouter.post('/auth/login', async (c) => {
     await ensureSeeded();
     try {
       let username: string | undefined;
@@ -80,17 +152,10 @@ export function registerAdminRoutes(app: Hono<{ Bindings: Env }>): void {
         return c.json({ error: 'username and password are required' }, 400);
       }
 
-      const env = c.env;
+      // Env bindings are passed through from parent app at runtime
+      const env = c.env as Partial<Env>;
       const tenantId = env?.TENANT_ID ?? process.env.TENANT_ID ?? 'default';
-      const dbUrl = env?.DATABASE_URL ?? env?.TURSO_DATABASE_URL ?? process.env.DATABASE_URL ?? process.env.TURSO_DATABASE_URL ?? '';
-      const dbAuthToken = env?.DATABASE_AUTH_TOKEN ?? env?.TURSO_AUTH_TOKEN ?? process.env.DATABASE_AUTH_TOKEN ?? process.env.TURSO_AUTH_TOKEN;
-
-      if (!dbUrl) {
-        return c.json({ error: 'DATABASE_URL not configured' }, 500);
-      }
-
-      const { createDb } = await import('@sechel-mcp/core');
-      const db = await createDb({ url: dbUrl, authToken: dbAuthToken, runtime: process.env.VERCEL === '1' ? 'edge' : 'node' });
+      const db = await getDbForRequest(env, opts?.db);
 
       const { sql } = await import('kysely');
       const user = await sql<{
@@ -102,7 +167,7 @@ export function registerAdminRoutes(app: Hono<{ Bindings: Env }>): void {
         LIMIT 1
       `.execute(db);
 
-      await db.destroy();
+      if (!opts?.db) await db.destroy();
 
       if (user.rows.length === 0) {
         return c.json({ error: 'Invalid credentials' }, 401);
@@ -118,11 +183,13 @@ export function registerAdminRoutes(app: Hono<{ Bindings: Env }>): void {
         return c.json({ error: 'Invalid credentials' }, 401);
       }
 
-      const sessionToken = await createSessionToken({
-        userId: row.id,
-        tenantId,
-        role: row.role,
-      });
+      const sessionToken = await createSessionToken(
+        { userId: row.id, tenantId, role: row.role },
+        opts?.jwtSecret,
+      );
+
+      // Set HttpOnly session cookie for standalone mode
+      c.header('Set-Cookie', `session=${sessionToken}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`);
 
       return c.json({
         token: sessionToken,
@@ -133,4 +200,12 @@ export function registerAdminRoutes(app: Hono<{ Bindings: Env }>): void {
       return c.json({ error: message }, 500);
     }
   });
+
+  // ---- CRUD sub-routers ----
+  registerUserRoutes(adminRouter);
+  registerSettingsRoutes(adminRouter);
+  registerTokenRoutes(adminRouter);
+
+  // Mount the admin router at the configured prefix
+  app.route(prefix, adminRouter);
 }
