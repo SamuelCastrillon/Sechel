@@ -151,4 +151,6 @@ vite.config.ts.timestamp-*
 .sechel-local.db
 # Legacy name during migration — keep while old env vars exist
 .cortext-local.db
+# Dev databases created by dev.ts or other dev scripts
+*.db
 *.turso
