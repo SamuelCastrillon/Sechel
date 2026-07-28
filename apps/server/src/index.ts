@@ -1,9 +1,12 @@
 import { Hono } from 'hono';
+import type { Kysely } from 'kysely';
 import { serve } from '@hono/node-server';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { createSechelServer } from '@sechel-mcp/mcp-server';
+import type { CortexDB } from '@sechel-mcp/core';
 import { createDb, verifyToken } from '@sechel-mcp/core';
 import { registerAdminRoutes, bootstrapAdmin, ensureSeeded } from './admin.js';
+import type { AdminRoutesOptions } from './admin.js';
 
 // ---------------------------------------------------------------------------
 // Env — typed bindings for both CF Workers and Node.js
@@ -34,11 +37,18 @@ function dbRuntime(_env: Partial<Env>): 'edge' | 'node' {
 // ---------------------------------------------------------------------------
 // App factory — exported so tests and consumers can create isolated instances
 // ---------------------------------------------------------------------------
-export function createApp(): Hono<{ Bindings: Env }> {
+export function createApp(opts?: {
+  /** Shared Kysely instance (reused across all routes) */
+  db?: Kysely<CortexDB>;
+  /** Mount prefix for admin routes (e.g. "/api/admin"). Defaults to "/admin" */
+  prefix?: string;
+  /** Override JWT secret (defaults to process.env.JWT_SECRET) */
+  jwtSecret?: string;
+}): Hono<{ Bindings: Env }> {
   const app = new Hono<{ Bindings: Env }>();
 
-    // ---- Admin maintenance routes ------------------------------------------
-  registerAdminRoutes(app);
+  // ---- Admin maintenance routes ------------------------------------------
+  registerAdminRoutes(app, opts as AdminRoutesOptions);
 
   // ---- MCP StreamableHTTP endpoint ----------------------------------------
   // Creates a fresh transport + server per request (stateless mode).
