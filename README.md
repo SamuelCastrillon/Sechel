@@ -1,33 +1,57 @@
 # Sechel
 
-Servidor MCP en la nube para memorias persistentes de agentes de IA, 100%
-compatible con la API de herramientas `mem_*` de
-[Engram](https://github.com/Gentleman-Programming/engram).
+Persistent memory for AI agents. Deployable anywhere — Vercel, Cloudflare
+Workers, Docker, or your own server.
 
-Los agentes (Claude Code, OpenCode, Cursor, Gemini CLI, etc.) que soporten
-**MCP over HTTP** pueden apuntar a Sechel y usar las mismas herramientas
-`mem_save`, `mem_search`, `mem_context`, … sin cambios. La diferencia: la memoria
-vive en la nube (Turso / libSQL), no en un archivo SQLite local, y está aislada
-por tenant.
+Agents (Claude Code, OpenCode, Cursor, Gemini CLI, etc.) connect via **MCP
+over HTTP** and use tools like `mem_save`, `mem_search`, `mem_context` to
+read and write memory that persists across sessions. Memory lives in the cloud
+(Turso / libSQL), isolated by tenant.
 
 ---
 
-## Por qué existe
+## Why
 
-Engram corre como binario local con SQLite de archivo y transporte **stdio**.
-Eso no se despliega en Vercel (no hay stdio en serverless). Sechel es el
-mismo cerebro de memoria, pero:
+AI agents need memory to be useful beyond a single conversation — but most
+memory solutions are local binaries that can't run on serverless platforms.
 
-- **Transporte:** MCP Streamable HTTP (no stdio).
-- **DB:** Turso (SQLite remoto vía libSQL) en lugar de archivo local.
-- **Multi-tenant:** cada usuario tiene sus memorias aisladas por `tenant_id`.
-- **Sin replicación local→cloud:** las tablas `sync_mutations` / `sync_chunks`
-  de Engram no existen; la nube es la fuente de verdad.
+Sechel provides the same memory tools your agent already expects, but as an
+HTTP endpoint:
 
-El comportamiento de las herramientas es idéntico al de Engram (upsert por
-`topic_key`, dedupe en ventana de 15 min, FTS5 + `bm25()`, conflict surfacing).
-Ver [`docs/engram-query-reference.md`](docs/engram-query-reference.md) para el
-SQL exacto por herramienta.
+- **MCP Streamable HTTP** — works on serverless, edge, and traditional runtimes.
+- **Cloud database** — Turso (libSQL) instead of a local SQLite file.
+- **Multi-tenant** — each user or team gets isolated memory by `tenant_id`.
+- **Auth built-in** — JWT sessions, Argon2id passwords, SHA-256 API tokens.
+- **Admin API** — manage users, tokens, and settings at runtime.
+
+---
+
+## Quick start
+
+```bash
+# One-command local CLI (stdio)
+npx sechel
+```
+
+```bash
+# Or deploy the server (HTTP)
+pnpm -C apps/server dev
+```
+
+```bash
+# Connect your agent
+```
+```json
+{
+  "mcp": {
+    "sechel": {
+      "type": "remote",
+      "url": "http://localhost:3001/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
 
 ---
 
@@ -36,22 +60,22 @@ SQL exacto por herramienta.
 - **Runtime:** Node.js, Cloudflare Workers, Deno
 - **Server:** Hono (MCP Streamable HTTP)
 - **Panel:** Astro + React islands + Tailwind CSS v4
-- **DB:** Turso / libSQL (vía `@libsql/client`)
-- **Auth:** JWT (jose), Argon2id (hash-wasm), SHA-256 tokens API
+- **DB:** Turso / libSQL (via `@libsql/client`)
+- **Auth:** JWT (jose), Argon2id (hash-wasm), SHA-256 API tokens
 - **Package manager:** pnpm 9.15
-- **Publicación:** npm (`@sechel-mcp/core`, `@sechel-mcp/mcp-server`, `@sechel-mcp/cli`)
+- **Published as:** npm (`@sechel-mcp/core`, `@sechel-mcp/mcp-server`, `@sechel-mcp/cli`)
 
 ---
 
-## Perfiles de uso
+## Usage profiles
 
-Elegí el que se ajuste a tu caso:
+Pick the one that fits your case:
 
-| Perfil | Componente | README | Ideal para |
-|--------|-----------|--------|------------|
-| **Local** | `apps/cli` | [`apps/cli/README.md`](apps/cli/README.md) | Uso local con SQLite embebida, sin depender de Turso ni cloud |
-| **Single-user** | `apps/server` | [`apps/server/README.md`](apps/server/README.md) | Un solo usuario, MCP endpoint remoto, sin UI de administración |
-| **Multi-user** | `apps/panel` + `apps/server` | [`apps/panel/README.md`](apps/panel/README.md) | Equipos, gestión visual de usuarios y tokens |
+| Profile | Component | README | Best for |
+|---------|-----------|--------|----------|
+| **Local** | `apps/cli` | [`apps/cli/README.md`](apps/cli/README.md) | Local use with embedded SQLite, no cloud dependency |
+| **Single-user** | `apps/server` | [`apps/server/README.md`](apps/server/README.md) | One user, remote MCP endpoint, no admin UI |
+| **Multi-user** | `apps/panel` + `apps/server` | [`apps/panel/README.md`](apps/panel/README.md) | Teams, visual user and token management |
 
 ### Local (CLI)
 
@@ -59,50 +83,53 @@ Elegí el que se ajuste a tu caso:
 npx sechel
 ```
 
-Sin config, sin cloud. La DB se crea automáticamente en `~/.config/sechel/`.
-Conectá tu cliente MCP via stdio.
+No config, no cloud. The DB is created automatically in `~/.config/sechel/`.
+Connect your MCP client via stdio.
 
-Ver [`apps/cli/README.md`](apps/cli/README.md).
+See [`apps/cli/README.md`](apps/cli/README.md).
 
 ### Single-user (server standalone)
 
-Un proceso Hono que expone el endpoint MCP over HTTP. Ideal para desplegar en
-Vercel, Cloudflare Workers, o Docker para uso personal.
+A Hono process exposing the MCP over HTTP endpoint + Admin REST API.
+Ideal for deploying to Vercel, Cloudflare Workers, or Docker for personal use.
 
 ```bash
-# Configurar
 export DATABASE_URL=libsql://...
 export DATABASE_AUTH_TOKEN=...
+export JWT_SECRET=my-32-char-secret-string-here
+export ADMIN_USERNAME=admin
+export ADMIN_PASSWORD=my-strong-password
 export SECHEL_DEV_TOKEN=sk-my-dev-token
 
-# Levantar
 pnpm -C apps/server dev
 ```
 
-Autenticación vía `Authorization: Bearer <token>`. El endpoint valida contra
-`user_tokens` o `SECHEL_DEV_TOKEN`. Sin panel, sin UI.
+**MCP endpoint**: `POST /mcp` — auth via `Authorization: Bearer <token>`.
 
-Ver [`apps/server/README.md`](apps/server/README.md).
+**Admin REST API**: `POST /admin/auth/login` → JWT. CRUD for users, tokens,
+and settings under `/admin/*`. Roles: `admin` and `member`.
+
+See [`apps/server/README.md`](apps/server/README.md).
 
 ### Multi-user (panel + server)
 
-El panel de Astro embebe el server Hono en el mismo proceso. Incluye:
+The Astro panel embeds the Hono server in the same process. Includes:
 
-- Login/register con JWT + HttpOnly cookies
-- Dashboard con estado del sistema
-- CRUD de usuarios con roles y permisos por proyecto
-- Gestión de tokens de API
-- Configuración de instancia en runtime
+- Login/register with JWT + HttpOnly cookies
+- Dashboard with system status
+- User CRUD with roles and project permissions
+- API token management
+- Runtime instance configuration
 
 ```bash
 pnpm -C apps/panel dev
 ```
 
-Ver [`apps/panel/README.md`](apps/panel/README.md).
+See [`apps/panel/README.md`](apps/panel/README.md).
 
 ---
 
-## Estructura del monorepo
+## Monorepo structure
 
 ```
 sechel/
@@ -110,61 +137,72 @@ sechel/
 │   ├── core/            ← @sechel-mcp/core — createDb, verifyToken, domain
 │   └── mcp-server/      ← @sechel-mcp/mcp-server — createSechelServer factory
 ├── apps/
-│   ├── cli/             ← @sechel-mcp/cli — uso local via stdio
-│   ├── server/          ← @sechel/server — Hono HTTP, endpoint MCP
+│   ├── cli/             ← @sechel-mcp/cli — local usage via stdio
+│   ├── server/          ← @sechel/server — Hono HTTP, MCP endpoint
 │   └── panel/           ← @sechel/panel — Astro admin panel
 ├── modules/             ← Backward-compat re-exports (legacy Next.js)
 ├── docs/
 │   ├── engram-query-reference.md
 │   └── architecture.md
-└── app/                 ← Legacy Next.js app (migración en curso)
+└── app/                 ← Legacy Next.js app (migration in progress)
 ```
 
 ---
 
-## Configuración en OpenCode
-
-Sechel puede configurarse en OpenCode como servidor MCP remoto:
+## OpenCode configuration
 
 ```json
 {
   "mcp": {
     "sechel": {
       "type": "remote",
-      "url": "https://<tu-despliegue>/mcp",
+      "url": "https://<your-deployment>/mcp",
       "headers": {
-        "Authorization": "Bearer <tu-token>"
+        "Authorization": "Bearer <your-token>"
       }
     }
   }
 }
 ```
 
-Para usar las herramientas con el prefijo `engram_` (compatible con skills
-existentes), nombrá el servidor como `engram` en la config.
+---
+
+## Compatibility
+
+Sechel implements the same `mem_*` tool interface as
+[Engram](https://github.com/Gentleman-Programming/engram) — upsert by
+`topic_key`, 15-minute dedupe window, FTS5 + `bm25()`, conflict surfacing.
+
+If your workflow already uses Engram, point your client to Sechel instead and
+it works with zero changes. Name the server `engram` in your MCP config to
+keep existing `engram_*` tool prefixes.
+
+See [`docs/engram-query-reference.md`](docs/engram-query-reference.md) for the
+full SQL reference per tool.
 
 ---
 
 ## Roadmap
 
-- [x] Schema multi-tenant + FTS5
-- [x] 24 herramientas `mem_*` implementadas
-- [x] Auth real: Argon2id, JWT, SHA-256 tokens API
-- [x] CLI local (`@sechel-mcp/cli`)
-- [x] Server Hono con StreamableHTTP (`@sechel/server`)
-- [ ] Panel multi-user completo (Astro)
+- [x] Multi-tenant schema + FTS5
+- [x] 24 `mem_*` tools implemented
+- [x] Real auth: Argon2id, JWT, SHA-256 API tokens
+- [x] Local CLI (`@sechel-mcp/cli`)
+- [x] Hono server with StreamableHTTP (`@sechel/server`)
+- [x] Admin REST API (JWT login, CRUD users/tokens/settings, roles)
+- [ ] Multi-user panel complete (Astro)
 - [ ] Conflict surfacing (`mem_save` → `FindCandidates` → `memory_relations`)
 
 ---
 
-## Licencia
+## License
 
-MIT — ver [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
 
-Sechel es un proyecto original con licencia MIT. No contiene código fuente
-de Engram, pero la especificación de queries en
-[`docs/engram-query-reference.md`](docs/engram-query-reference.md) está derivada
-del store interno de Engram para mantener compatibilidad 100% de herramientas.
+Sechel is an original project under the MIT license. It does not contain source
+code from Engram, but the query specification in
+[`docs/engram-query-reference.md`](docs/engram-query-reference.md) is derived
+from Engram's internal store to maintain 100% tool compatibility.
 
 - [Engram](https://github.com/Gentleman-Programming/engram) — © 2026 Alan Buscaglia (MIT)
 - [Sechel](LICENSE) — © 2026 samcasdev (MIT)
