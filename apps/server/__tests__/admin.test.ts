@@ -133,7 +133,7 @@ describe('Admin API — Login', () => {
     expect(setCookie).toContain('Max-Age=86400');
   });
 
-  it('POST /admin/auth/login returns 403 for inactive account', async () => {
+  it('POST /admin/auth/login returns 401 for inactive account (no existence leak)', async () => {
     // Deactivate the admin temporarily
     await sql`UPDATE users SET is_active = 0 WHERE username = ${ADMIN_USERNAME}`.execute(db);
 
@@ -142,8 +142,9 @@ describe('Admin API — Login', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: ADMIN_USERNAME, password: ADMIN_PASSWORD }),
     }, testEnv);
-    expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: 'Account is disabled' });
+    // Must return 401 (same as wrong password) — no 403 to avoid user enumeration
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Invalid credentials' });
 
     // Reactivate
     await sql`UPDATE users SET is_active = 1 WHERE username = ${ADMIN_USERNAME}`.execute(db);

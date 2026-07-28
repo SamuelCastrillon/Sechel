@@ -1,7 +1,7 @@
 import { randomBytes, createHash } from 'node:crypto';
 import type { Hono } from 'hono';
 import { sql } from 'kysely';
-import { getUser, getDb } from './auth-middleware.js';
+import { getUser, getDb, requireRole } from './auth-middleware.js';
 
 /**
  * Generate a new API token with:
@@ -25,6 +25,9 @@ export function generateApiToken(): { raw: string; hash: string; prefix: string 
  *   DELETE /tokens/:id   — hard-delete a token
  */
 export function registerTokenRoutes(router: Hono): void {
+  // Require admin role for all token management routes
+  router.use(requireRole('admin'));
+
   // GET /tokens — list all tokens
   router.get('/tokens', async (c) => {
     const db = getDb(c);
@@ -61,14 +64,12 @@ export function registerTokenRoutes(router: Hono): void {
 
     const { raw, hash, prefix } = generateApiToken();
 
-    await sql`
+    const insertResult = await sql<{ id: number }>`
       INSERT INTO user_tokens (tenant_id, user_id, prefix, token_hash, description)
       VALUES (${tenantId}, ${userId}, ${prefix}, ${hash}, ${description ?? null})
+      RETURNING id
     `.execute(db);
-
-    // Retrieve the last inserted id
-    const lastId = await sql<{ id: number }>`SELECT last_insert_rowid() as id`.execute(db);
-    const id = lastId.rows[0].id;
+    const id = insertResult.rows[0].id;
 
     return c.json({
       id,

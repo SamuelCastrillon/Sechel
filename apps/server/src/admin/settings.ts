@@ -1,6 +1,6 @@
 import type { Hono } from 'hono';
 import { sql } from 'kysely';
-import { getDb } from './auth-middleware.js';
+import { getDb, requireRole } from './auth-middleware.js';
 
 /**
  * Allowed setting keys that can be updated.
@@ -15,6 +15,9 @@ const ALLOWED_SETTING_KEYS = ['registration_enabled'];
  *   PATCH  /settings    — update allowed settings keys
  */
 export function registerSettingsRoutes(router: Hono): void {
+  // Require admin role for all settings management routes
+  router.use(requireRole('admin'));
+
   // GET /settings — return all instance settings as key-value object
   router.get('/settings', async (c) => {
     const db = getDb(c);

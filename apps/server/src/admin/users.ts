@@ -1,7 +1,9 @@
 import type { Hono } from 'hono';
 import { sql } from 'kysely';
 import { hashPassword } from './auth.js';
-import { getUser, getDb } from './auth-middleware.js';
+import { getUser, getDb, requireRole } from './auth-middleware.js';
+
+const VALID_ROLES = ['admin', 'member'];
 
 /**
  * Register user CRUD routes on the given Hono router.
@@ -14,6 +16,9 @@ import { getUser, getDb } from './auth-middleware.js';
  *   POST   /users/:id/permissions   — set project permission
  */
 export function registerUserRoutes(router: Hono): void {
+  // Require admin role for all user management routes
+  router.use(requireRole('admin'));
+
   // GET /users — list all users
   router.get('/users', async (c) => {
     const db = getDb(c);
@@ -48,6 +53,9 @@ export function registerUserRoutes(router: Hono): void {
       username = body.username;
       password = body.password;
       role = body.role ?? 'member';
+      if (!VALID_ROLES.includes(role)) {
+        return c.json({ error: 'role must be admin or member' }, 400);
+      }
     } catch {
       return c.json({ error: 'username, password, and role are required' }, 400);
     }
@@ -104,6 +112,10 @@ export function registerUserRoutes(router: Hono): void {
 
     if (!role) {
       return c.json({ error: 'role is required' }, 400);
+    }
+
+    if (!VALID_ROLES.includes(role)) {
+      return c.json({ error: 'role must be admin or member' }, 400);
     }
 
     // Check user exists

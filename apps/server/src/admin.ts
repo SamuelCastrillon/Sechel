@@ -121,11 +121,24 @@ export function registerAdminRoutes(
   // Apply auth middleware to all admin routes (exempt paths handled internally)
   adminRouter.use('/*', authMiddleware(opts?.jwtSecret));
 
-  // If shared db provided, set it in context for all handlers
+  // If shared db provided, set it in context for all handlers.
+  // Otherwise, create a per-request connection from env vars.
   if (opts?.db) {
     adminRouter.use('/*', async (c, next) => {
       (c as any).set('db', opts.db!);
       await next();
+    });
+  } else {
+    adminRouter.use('/*', async (c, next) => {
+      const db = await getDbForRequest(c.env as Partial<Env>);
+      (c as any).set('db', db);
+      try {
+        await next();
+      } finally {
+        if (typeof (db as any)?.destroy === 'function') {
+          await (db as any).destroy();
+        }
+      }
     });
   }
 
@@ -157,44 +170,43 @@ export function registerAdminRoutes(
       const tenantId = env?.TENANT_ID ?? process.env.TENANT_ID ?? 'default';
       const db = await getDbForRequest(env, opts?.db);
 
-      const { sql } = await import('kysely');
-      const user = await sql<{
-        id: number; username: string; role: string; credential_hash: string; is_active: number
-      }>`
-        SELECT id, username, role, credential_hash, is_active
-        FROM users
-        WHERE tenant_id = ${tenantId} AND username = ${username}
-        LIMIT 1
-      `.execute(db);
+      try {
+        const { sql } = await import('kysely');
+        const user = await sql<{
+          id: number; username: string; role: string; credential_hash: string; is_active: number
+        }>`
+          SELECT id, username, role, credential_hash, is_active
+          FROM users
+          WHERE tenant_id = ${tenantId} AND username = ${username}
+          LIMIT 1
+        `.execute(db);
 
-      if (!opts?.db) await db.destroy();
+        if (user.rows.length === 0) {
+          return c.json({ error: 'Invalid credentials' }, 401);
+        }
 
-      if (user.rows.length === 0) {
-        return c.json({ error: 'Invalid credentials' }, 401);
+        const row = user.rows[0];
+        const valid = await verifyPassword(password, row.credential_hash);
+
+        if (!valid || !row.is_active) {
+          return c.json({ error: 'Invalid credentials' }, 401);
+        }
+
+        const sessionToken = await createSessionToken(
+          { userId: row.id, tenantId, role: row.role },
+          opts?.jwtSecret,
+        );
+
+        // Set HttpOnly session cookie for standalone mode
+        c.header('Set-Cookie', `session=${sessionToken}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`);
+
+        return c.json({
+          token: sessionToken,
+          user: { id: row.id, username: row.username, role: row.role },
+        });
+      } finally {
+        if (!opts?.db) await db.destroy();
       }
-
-      const row = user.rows[0];
-      if (!row.is_active) {
-        return c.json({ error: 'Account is disabled' }, 403);
-      }
-
-      const valid = await verifyPassword(password, row.credential_hash);
-      if (!valid) {
-        return c.json({ error: 'Invalid credentials' }, 401);
-      }
-
-      const sessionToken = await createSessionToken(
-        { userId: row.id, tenantId, role: row.role },
-        opts?.jwtSecret,
-      );
-
-      // Set HttpOnly session cookie for standalone mode
-      c.header('Set-Cookie', `session=${sessionToken}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`);
-
-      return c.json({
-        token: sessionToken,
-        user: { id: row.id, username: row.username, role: row.role },
-      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       return c.json({ error: message }, 500);
