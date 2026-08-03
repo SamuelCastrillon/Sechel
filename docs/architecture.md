@@ -1,5 +1,9 @@
 # Sechel — Architecture
 
+> **Historical/superseded**: this document describes the earlier Next.js-era
+> architecture and does not reflect the current Hono-based pnpm monorepo
+> (apps/ + packages/). Kept for reference only.
+
 Sechel is built as a **Next.js 15 MCP-HTTP server on Vercel** backed by
 **Turso/libSQL via Kysely**, with a **permission guard** that enforces per-project
 access for authenticated users, while keeping **100% behavioral compatibility** with

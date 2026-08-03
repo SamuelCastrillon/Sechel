@@ -1,6 +1,6 @@
 # @sechel-mcp/mcp-server
 
-MCP server factory for Sechel — registers all 24 persistent memory tools (`mem_*` + `ping`) on an [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) server instance.
+MCP server factory for Sechel — registers all 22 `mem_*` tools plus `ping` on an [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) server instance.
 
 ## Install
 
@@ -49,7 +49,7 @@ const server = await createSechelServer({
 
 ### `createSechelServer(config: SechelServerConfig): Promise<McpServer>`
 
-Creates an `McpServer`, registers all 24 tools, connects to the given transport, and returns the server.
+Creates an `McpServer`, registers all 22 `mem_*` tools plus `ping`, connects to the given transport, and returns the server.
 
 ```ts
 interface SechelServerConfig {

@@ -6,10 +6,10 @@ import type { Kysely } from 'kysely';
 import type { CortexDB } from '@sechel-mcp/core';
 
 // ---------------------------------------------------------------------------
-// P-1.2 RED: createSechelServer with mocked transport registers 24 tools
+// P-1.2 RED: createSechelServer with mocked transport registers 23 tools
 // ---------------------------------------------------------------------------
 describe('createSechelServer — P-1.2 RED', () => {
-  it('registers 24 tools with InMemoryTransport', async () => {
+  it('registers 23 tools with InMemoryTransport', async () => {
     const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
 
     // Use a minimal mock db — factory does not call db during construction

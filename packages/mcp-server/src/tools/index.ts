@@ -33,7 +33,7 @@ export interface ToolContext {
 }
 
 /**
- * Register all 24 tools on the given MCP server.
+ * Register all 23 tools (22 mem_* tools + ping) on the given MCP server.
  * Tools that require auth will check extra.authInfo from the SDK.
  */
 export function registerAllTools(server: McpServer, ctx: ToolContext): void {

@@ -14,7 +14,7 @@
   },
   "files": ["dist"],
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch dev.ts",
     "build": "tsc -b",
     "start": "node dist/entry-node.js",
     "clean": "rm -rf dist",

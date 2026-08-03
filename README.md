@@ -34,7 +34,7 @@ npx sechel
 ```
 
 ```bash
-# Or deploy the server (HTTP)
+# Or run the server locally (HTTP)
 pnpm -C apps/server dev
 ```
 
@@ -185,7 +185,7 @@ full SQL reference per tool.
 ## Roadmap
 
 - [x] Multi-tenant schema + FTS5
-- [x] 24 `mem_*` tools implemented
+- [x] 22 `mem_*` tools implemented
 - [x] Real auth: Argon2id, JWT, SHA-256 API tokens
 - [x] Local CLI (`@sechel-mcp/cli`)
 - [x] Hono server with StreamableHTTP (`@sechel/server`)

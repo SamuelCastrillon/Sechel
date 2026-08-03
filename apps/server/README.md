@@ -316,7 +316,7 @@ Missing `Accept: text/event-stream` → `406 Not Acceptable`.
 
 #### Exposed tools
 
-The server exposes 21 `mem_*` tools (identical to Engram's API):
+The server exposes 22 `mem_*` tools plus `ping` (identical to Engram's API):
 
 | Tool | Description |
 |------|-------------|
@@ -325,6 +325,7 @@ The server exposes 21 `mem_*` tools (identical to Engram's API):
 | `mem_search` | FTS5 full-text search |
 | `mem_get_observation` | Full content by ID |
 | `mem_context` | Recent session context |
+| `mem_timeline` | Chronological neighborhood of an observation |
 | `mem_update` | Update existing observation |
 | `mem_delete` | Delete (soft or hard) |
 | `mem_stats` | Tenant statistics |
@@ -380,10 +381,20 @@ curl -X POST http://localhost:3001/mcp \
 
 ---
 
+### Entry points
+
+- `src/index.ts` — runtime-agnostic Hono app (default export), used by Vercel
+  and Cloudflare Workers.
+- `src/entry-node.ts` — Node.js production entry (`npm start` / Docker); runs
+  `ensureSeeded()`, then serves on `PORT` (default `3001`).
+- `dev.ts` — local development entry: creates `sechel-dev.db` (SQLite), seeds
+  the admin, and serves on `http://localhost:3001`.
+
 ### Local development
 
 ```bash
-npx tsx apps/server/dev.ts
+pnpm -C apps/server dev        # primary dev command
+# or, from the repo root: npx tsx apps/server/dev.ts
 ```
 
 This creates `sechel-dev.db` in `apps/server/`, runs migrations, seeds the
@@ -414,13 +425,19 @@ pnpm -C apps/server test:watch  # watch mode
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | Turso URL (`libsql://...`) or SQLite (`file:...`) |
 | `DATABASE_AUTH_TOKEN` | Yes* | Turso access token |
+| `TURSO_DATABASE_URL` | No | Legacy alias of `DATABASE_URL` (Turso/libSQL URL) |
+| `TURSO_AUTH_TOKEN` | No | Legacy alias of `DATABASE_AUTH_TOKEN` |
 | `JWT_SECRET` | Yes | JWT signing secret for admin sessions (32+ chars) |
 | `ADMIN_USERNAME` | No | Initial admin username (auto-seeded on first run) |
 | `ADMIN_PASSWORD` | No | Initial admin password |
 | `SECHEL_DEV_TOKEN` | No | Dev token — bypasses auth for MCP endpoint |
 | `TENANT_ID` | No | Tenant ID (default: `"default"`) |
+| `PORT` | No | HTTP port for the Node entry (default: `3001`) |
 
 \* Not required for embedded databases (`file:` / `:memory:`).
+
+`TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` are legacy aliases of
+`DATABASE_URL` / `DATABASE_AUTH_TOKEN` — only one pair is needed.
 
 ---
 

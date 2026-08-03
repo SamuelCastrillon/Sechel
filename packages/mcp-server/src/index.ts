@@ -24,7 +24,7 @@ export interface SechelServerConfig {
 /**
  * Create and connect a Sechel MCP server.
  *
- * The factory registers all 24 tools (23 mem_* tools + ping) on an McpServer
+ * The factory registers all 23 tools (22 mem_* tools + ping) on an McpServer
  * instance, connects it to the given transport, and returns the server.
  *
  * Auth is handled via the SDK's built-in authInfo mechanism: the transport may
