@@ -1,11 +1,12 @@
+// Runtime-agnostic Web Standard entry (CF Workers + Vercel). The Node.js
+// production server entry lives in src/entry-node.ts.
 import { Hono } from 'hono';
 import type { Kysely } from 'kysely';
-import { serve } from '@hono/node-server';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { createSechelServer } from '@sechel-mcp/mcp-server';
 import type { CortexDB } from '@sechel-mcp/core';
 import { createDb, verifyToken } from '@sechel-mcp/core';
-import { registerAdminRoutes, bootstrapAdmin, ensureSeeded } from './admin.js';
+import { registerAdminRoutes } from './admin.js';
 import type { AdminRoutesOptions } from './admin.js';
 
 // ---------------------------------------------------------------------------
@@ -101,25 +102,3 @@ const app = createApp();
 
 // ---- CF Workers entry point (when deployed to Cloudflare) -----------------
 export default app;
-
-// ---- Node.js entry point (when running directly) --------------------------
-const isDirectRun =
-  process.argv[1] &&
-  (import.meta.url === `file://${process.argv[1]}` ||
-    import.meta.url.endsWith(`/${process.argv[1]}`));
-
-if (isDirectRun) {
-  ensureSeeded().catch((err) =>
-    console.error('bootstrapAdmin failed:', err instanceof Error ? err.message : err)
-  );
-
-  const port = parseInt(process.env.PORT || '3001', 10);
-  console.log(`Sechel server starting on http://localhost:${port}`);
-  console.log(`  MCP endpoint: POST /mcp`);
-  console.log(`  Admin:        GET /admin/health`);
-
-  serve({
-    fetch: app.fetch,
-    port,
-  });
-}

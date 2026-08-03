@@ -461,8 +461,26 @@ pnpm -C apps/server deploy:cf
 
 #### Vercel
 
+Vercel deploys the server as a serverless function via the **Hono** framework
+preset — the default export in `src/index.ts` is the entry point (no `api/`
+functions or rewrites needed).
+
+**Prereqs**: a Turso database URL + auth token, plus `JWT_SECRET` and
+`TENANT_ID`.
+
+**Vercel project setup**: Root Directory = `apps/server`, Framework Preset =
+**Hono**. Set these env vars: `DATABASE_URL` (`libsql://...`),
+`DATABASE_AUTH_TOKEN`, `JWT_SECRET`, `TENANT_ID`, and optionally
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` and `SECHEL_DEV_TOKEN`.
+
+**Seed the DB first**: `ensureSeeded()` only runs on the Node entry, so seed
+the Turso database beforehand — e.g. run `pnpm --filter @sechel/server start`
+once locally with `DATABASE_URL` / `DATABASE_AUTH_TOKEN` pointing at the remote
+DB, or use the dev entry / a script.
+
 ```bash
 pnpm -C apps/server deploy:vercel
+# or, from apps/server: vercel deploy --prod
 ```
 
 ---
