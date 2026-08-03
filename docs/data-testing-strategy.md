@@ -1,5 +1,9 @@
 # Data Layer & Testing Strategy — Sechel
 
+> **Historical/superseded**: this document describes the earlier Next.js-era
+> architecture and does not reflect the current Hono-based pnpm monorepo
+> (apps/ + packages/). Kept for reference only.
+
 Authoritative decisions for the Sechel cloud memory server. These choices
 are locked: any implementation MUST follow them.
 

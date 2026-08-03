@@ -4,7 +4,7 @@
 > © 2026 Alan Buscaglia — MIT License
 > https://github.com/Gentleman-Programming/engram
 
-This document is the authoritative reference for the SQL behavior of the 20 `mem_*`
+This document is the authoritative reference for the SQL behavior of the 22 `mem_*`
 MCP tools exposed by the Sechel cloud server. It is derived from the upstream
 Engram `internal/store/store.go` and `internal/store/relations.go` so tool behavior
 stays 100% compatible for any MCP-HTTP agent.
@@ -616,7 +616,7 @@ WHERE tenant_id = :tenant_id AND id = :id AND deleted_at IS NULL;
 
 | Upstream behavior            | Sechel | Notes                                  |
 | ---------------------------- | ---------- | -------------------------------------- |
-| 20 `mem_*` tools             | ✅         | identical names + signatures           |
+| 22 `mem_*` tools             | ✅         | identical names + signatures           |
 | Upsert by `topic_key`        | ✅         | + constant `tenant_id` (single org) scoping        |
 | Per-project authorization    | ✅         | `user_project_access` (read/write/admin)          |
 | Dedupe 15-min window         | ✅         | same `normalized_hash` logic           |

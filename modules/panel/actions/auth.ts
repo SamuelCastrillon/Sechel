@@ -5,8 +5,55 @@ import { cookies } from 'next/headers';
 import type { Client } from '@libsql/client';
 import { getDb, TENANT_ID, resolveUrl } from '@/modules/core/db';
 import { verifyPassword, hashPassword } from '@/modules/core/auth/password';
-import { createSessionToken } from '@/modules/panel/auth';
+import { createSessionToken, withAdmin } from '@/modules/panel/auth';
+import type { ActionResult } from '@/modules/panel/auth';
 import { createClient } from '@libsql/client';
+
+// ── Password Management ───────────────────────────────────────────
+
+/**
+ * Change the current admin's password.
+ * Verifies current password before updating.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<ActionResult> {
+  if (!currentPassword || !newPassword) {
+    return { success: false, error: 'Current password and new password are required' };
+  }
+
+  if (newPassword.length < 6) {
+    return { success: false, error: 'New password must be at least 6 characters' };
+  }
+
+  return withAdmin(async (client, userId) => {
+    // Verify current password
+    const user = await client.execute({
+      sql: `SELECT credential_hash FROM users WHERE id = ?`,
+      args: [userId],
+    });
+
+    if (user.rows.length === 0) {
+      throw new Error('User not found');
+    }
+
+    const currentHash = (user.rows[0] as Record<string, unknown>).credential_hash as string;
+    const valid = await verifyPassword(currentPassword, currentHash);
+    if (!valid) {
+      throw new Error('Current password is incorrect');
+    }
+
+    // Update to new password
+    const newHash = await hashPassword(newPassword);
+    await client.execute({
+      sql: `UPDATE users SET credential_hash = ? WHERE id = ?`,
+      args: [newHash, userId],
+    });
+
+    return { message: 'Password changed successfully' };
+  });
+}
 
 /**
  * Shared login logic used by both the server action and API routes.

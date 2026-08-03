@@ -1,0 +1,43 @@
+---
+import AdminLayout from '@/layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Dashboard" currentPath="/admin">
+  <div class="space-y-6">
+    <div>
+      <h1 class="text-2xl font-black tracking-tighter uppercase text-on-surface">Dashboard</h1>
+      <p class="text-xs font-mono text-outline uppercase tracking-widest mt-1">
+        System Overview &amp; Control Panel
+      </p>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="border border-outline-variant">
+      <div class="border-b border-outline-variant px-4 py-2 bg-[#131313]">
+        <p class="text-[10px] font-mono text-on-primary-container tracking-wider">
+          [STATUS] ALL SYSTEMS OPERATIONAL
+        </p>
+      </div>
+      <div class="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="border border-outline-variant bg-card p-4">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-outline">Users</p>
+          <a href="/admin/users" class="text-primary hover:underline underline-offset-2 decoration-1 mt-2 inline-block text-sm">
+            Manage Users →
+          </a>
+        </div>
+        <div class="border border-outline-variant bg-card p-4">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-outline">Settings</p>
+          <a href="/admin/settings" class="text-primary hover:underline underline-offset-2 decoration-1 mt-2 inline-block text-sm">
+            Instance Settings →
+          </a>
+        </div>
+        <div class="border border-outline-variant bg-card p-4">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-outline">API Tokens</p>
+          <a href="/admin/api-tokens" class="text-primary hover:underline underline-offset-2 decoration-1 mt-2 inline-block text-sm">
+            Manage Tokens →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</AdminLayout>

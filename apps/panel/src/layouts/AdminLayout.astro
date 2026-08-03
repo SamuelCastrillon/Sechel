@@ -1,0 +1,28 @@
+---
+import { Sidebar } from '@/components/Sidebar';
+import '@/styles/global.css';
+
+export interface Props {
+  title: string;
+  currentPath: string;
+}
+
+const { title, currentPath } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} | Sechel Admin</title>
+  </head>
+  <body class="min-h-screen bg-[#0c0c0c] text-[#e7e0ec] font-sans antialiased">
+    <div class="flex h-screen overflow-hidden">
+      <Sidebar client:load currentPath={currentPath} />
+      <main class="flex-1 overflow-y-auto p-6">
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+---
+import AdminLayout from '@/layouts/AdminLayout.astro';
+import { ApiTokensList } from '@/components/tokens/ApiTokensList';
+---
+
+<AdminLayout title="API Tokens" currentPath="/admin/api-tokens">
+  <div class="space-y-6">
+    <div>
+      <h1 class="text-2xl font-black tracking-tighter uppercase text-on-surface">API Tokens</h1>
+      <p class="text-xs font-mono text-outline uppercase tracking-widest mt-1">
+        Token Management &amp; Access Keys
+      </p>
+    </div>
+    <ApiTokensList client:load />
+  </div>
+</AdminLayout>

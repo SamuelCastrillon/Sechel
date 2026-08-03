@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { getSettings, setSetting } from '@/modules/panel/actions/settings';
+import { Switch } from '@/modules/panel/components/ui/switch';
 
 interface Setting {
   key: string;
@@ -68,6 +69,10 @@ export function SettingsForm({ initialSettings = [] }: { initialSettings?: Setti
   );
 }
 
+function isBooleanValue(value: string): boolean {
+  return value === '0' || value === '1';
+}
+
 function SettingRow({
   setting,
   onSave,
@@ -83,6 +88,39 @@ function SettingRow({
   useEffect(() => {
     setEditValue(setting.value);
   }, [setting.value]);
+
+  const isBool = isBooleanValue(setting.value);
+
+  if (isBool) {
+    const checked = editValue === '1';
+    return (
+      <div className="px-4 py-3 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-outline">
+            {setting.key.replace(/_/g, ' ')}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {checked ? 'Enabled — new users can register' : 'Disabled — registration closed'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {isSaving && (
+            <span className="text-[9px] font-mono text-muted-foreground">SAVING...</span>
+          )}
+          <Switch
+            checked={checked}
+            onChange={(v) => onSave(setting.key, v ? '1' : '0')}
+            disabled={isSaving}
+          />
+          <span className={`text-[10px] font-bold font-mono tracking-wider ${
+            checked ? 'text-green-400' : 'text-muted-foreground'
+          }`}>
+            {checked ? 'ON' : 'OFF'}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-3 flex items-center gap-4">

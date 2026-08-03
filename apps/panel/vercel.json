@@ -1,0 +1,4 @@
+{
+  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
+  "buildCommand": "cd ../.. && pnpm --filter './packages/*' build && pnpm --filter @sechel/server build && pnpm --filter @sechel/panel build --config astro.config.vercel.ts"
+}

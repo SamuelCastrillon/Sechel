@@ -1,0 +1,4 @@
+{
+  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
+  "buildCommand": "cd ../.. && pnpm --filter @sechel/server build"
+}

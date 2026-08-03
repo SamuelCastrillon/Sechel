@@ -1,5 +1,9 @@
 # Sechel — Product Requirements Document
 
+> **Historical/superseded**: this document describes the earlier Next.js-era
+> architecture and does not reflect the current Hono-based pnpm monorepo
+> (apps/ + packages/). Kept for reference only.
+
 Sechel is an **open-source, self-hosted memory server** that exposes Engram's
 `mem_*` tools over MCP-HTTP with **100% behavioral compatibility**, so any MCP agent
 keeps working unchanged. Each organization, team, or solo developer deploys their own

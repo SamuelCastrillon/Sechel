@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# Cloudflare Workers configuration for @sechel/server
+# Deploy: npx wrangler deploy
+# ---------------------------------------------------------------------------
+name = "sechel-mcp-server"
+main = "src/index.ts"
+compatibility_date = "2025-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables — set via wrangler secret or dashboard for sensitive
+# values, or via wrangler.toml [vars] for non-sensitive defaults.
+[vars]
+DATABASE_URL = ""
+TENANT_ID = "default"
+
+# Workers + Assets for panel static files (future)
+# [assets]
+# directory = "./panel/dist"
+# binding = "ASSETS"
+
+# Route configuration
+routes = [
+  { pattern = "api.sechel.dev/mcp", zone_id = "ZONE_ID" },
+]

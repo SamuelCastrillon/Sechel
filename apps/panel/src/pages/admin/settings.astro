@@ -1,0 +1,21 @@
+---
+import AdminLayout from '@/layouts/AdminLayout.astro';
+import { SettingsForm } from '@/components/settings/SettingsForm';
+import { ChangePasswordForm } from '@/components/settings/ChangePasswordForm';
+---
+
+<AdminLayout title="Settings" currentPath="/admin/settings">
+  <div class="space-y-6">
+    <div>
+      <h1 class="text-2xl font-black tracking-tighter uppercase text-on-surface">Settings</h1>
+      <p class="text-xs font-mono text-outline uppercase tracking-widest mt-1">
+        Instance Configuration
+      </p>
+    </div>
+    <SettingsForm client:load />
+    <div class="mt-8">
+      <h2 class="text-lg font-bold uppercase tracking-wider text-on-surface mb-4">Change Password</h2>
+      <ChangePasswordForm client:load />
+    </div>
+  </div>
+</AdminLayout>

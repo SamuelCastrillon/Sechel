@@ -1,0 +1,7 @@
+# Astro build cache — auto-generated, must NOT be tracked
+.astro/
+
+dist/
+node_modules/
+.env
+*.local

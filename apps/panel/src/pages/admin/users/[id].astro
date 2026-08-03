@@ -1,0 +1,21 @@
+---
+import AdminLayout from '@/layouts/AdminLayout.astro';
+import { UserPermissionsClient } from '@/components/users/UserPermissionsClient';
+
+const { id } = Astro.params;
+---
+
+<AdminLayout title="User Details" currentPath="/admin/users">
+  <div class="space-y-6">
+    <div>
+      <a href="/admin/users" class="text-[10px] font-mono text-primary uppercase tracking-wider hover:underline underline-offset-2">
+        ← Back to Users
+      </a>
+      <h1 class="text-2xl font-black tracking-tighter uppercase text-on-surface mt-2">User #{id}</h1>
+      <p class="text-xs font-mono text-outline uppercase tracking-widest mt-1">
+        User Details &amp; Project Permissions
+      </p>
+    </div>
+    <UserPermissionsClient client:load userId={parseInt(id ?? '0', 10)} />
+  </div>
+</AdminLayout>
