@@ -1,42 +1,48 @@
 # @sechel/server — Sechel MCP Server
 
-Hono server with **MCP StreamableHTTP** endpoint and **Admin REST API** for
-managing users, tokens, and instance settings.
+Servidor Hono con **endpoint MCP StreamableHTTP** y **Admin REST API** para
+gestionar usuarios, tokens y la configuración de la instancia.
 
 ---
 
-## TL;DR — pick your profile
+## Resumen — elija su perfil
 
-- [**Profile A — Single user** (`SECHEL_DEV_TOKEN`)](#profile-a-single-user-sechel_dev_token): one token for yourself — a **deployed** server you access remotely from several machines, or share with your own remote agents. For local-only development, prefer the [CLI](../cli/README.md) instead.
-- [**Profile B — Multi-user** (real API tokens)](#profile-b-multi-user-real-api-tokens--the-production-flow): the production flow — per-client API tokens that are individually revocable.
+- [**Perfil A — Usuario único** (`SECHEL_DEV_TOKEN`)](#perfil-a-usuario-unico-sechel_dev_token): un token para usted mismo — un servidor **desplegado** al que accede de forma remota desde varias máquinas, o que comparte con sus propios agentes remotos. Para desarrollo solo local, prefiera el [CLI](../cli/README.md).
+- [**Perfil B — Multi-usuario** (tokens de API reales)](#perfil-b-multi-usuario-tokens-de-api-reales--el-flujo-de-produccion): el flujo de producción — tokens de API por cliente, revocables de forma individual.
 
-The only difference between the two is how the MCP endpoint authenticates you:
-the dev token bypasses all auth; real tokens are verified against the database.
-Everything else (Admin API, tools, deployment) is shared.
+La única diferencia entre ambos es cómo el endpoint MCP lo autentica a usted:
+el token de desarrollo omite toda la autenticación; los tokens reales se
+verifican contra la base de datos. Todo lo demás (Admin API, herramientas,
+despliegue) es compartido.
 
 ---
 
-## Profile A: Single user (SECHEL_DEV_TOKEN)
+## Perfil A: Usuario único (SECHEL_DEV_TOKEN)
 
-You want the MCP endpoint for yourself on a **deployed** server. Minimal config, one env var, done. This is the right choice when you deploy the server once (Vercel, Docker, Cloudflare) and connect from several machines or remote agents — all of them share the same token.
+Usted quiere el endpoint MCP para usted mismo en un servidor **desplegado**.
+Configuración mínima, una variable de entorno, listo. Es la elección correcta
+cuando despliega el servidor una vez (Vercel, Docker, Cloudflare) y se conecta
+desde varias máquinas o agentes remotos — todos comparten el mismo token.
 
-> **Scope**: a **deployed, single-user server**. `SECHEL_DEV_TOKEN` is set once
-> in the server's environment and used as the Bearer token from any machine.
-> It **bypasses all auth** — a bearer token matching it is granted **admin
-> access immediately**, and anyone who learns the dev token is admin. Because
-> every client shares one token, this profile is **not** for sharing the server
-> with other people; for multiple users use
-> [Profile B](#profile-b-multi-user-real-api-tokens--the-production-flow).
-> If you only need the MCP endpoint for **local development** (one machine,
-> no deployment), prefer the standalone CLI (`sechel`, see [apps/cli](../cli/README.md)) — it
-> runs a local stdio server with its own SQLite database, no network needed.
+> **Alcance**: un servidor **desplegado de un solo usuario**.
+> `SECHEL_DEV_TOKEN` se define una vez en el entorno del servidor y se usa como
+> token Bearer desde cualquier máquina. **Omite toda la autenticación** — un
+> token Bearer que coincida recibe **acceso de admin de inmediato**, y
+> cualquiera que conozca el token de desarrollo es admin. Como todos los
+> clientes comparten un único token, este perfil **no** es para compartir el
+> servidor con otras personas; para múltiples usuarios use el
+> [Perfil B](#perfil-b-multi-usuario-tokens-de-api-reales--el-flujo-de-produccion).
+> Si solo necesita el endpoint MCP para **desarrollo local** (una máquina, sin
+> despliegue), prefiera el CLI independiente (`sechel`, ver
+> [apps/cli](../cli/README.md)) — ejecuta un servidor local por stdio con su
+> propia base de datos SQLite, sin necesidad de red.
 
-**1. `.env`** — minimal config (deployed server → Turso database):
+**1. `.env`** — configuración mínima (servidor desplegado → base Turso):
 
 ```bash
 DATABASE_URL=libsql://your-db.turso.io          # Turso for production
 DATABASE_AUTH_TOKEN=...                          # only for Turso
-# DATABASE_URL=file:./sechel-dev.db              # SQLite (local-only, see CLI instead)
+# DATABASE_URL=file:./sechel-dev.db              # SQLite (solo local, ver CLI)
 
 JWT_SECRET=my-32-char-secret-string-here!!
 ADMIN_USERNAME=admin
@@ -45,9 +51,10 @@ ADMIN_PASSWORD=your-password
 SECHEL_DEV_TOKEN=sk-my-dev-token                # ← this is all you need for MCP
 ```
 
-**2. Deploy the server** (see [Deployment](#deployment)) and set the env vars above.
+**2. Despliegue el servidor** (ver [Despliegue](#despliegue)) y configure las
+variables de entorno de arriba.
 
-**3. Connect your MCP client** (OpenCode, Claude Code, etc.) to the deployed URL:
+**3. Conecte su cliente MCP** (OpenCode, Claude Code, etc.) a la URL desplegada:
 
 ```json
 {
@@ -61,10 +68,11 @@ SECHEL_DEV_TOKEN=sk-my-dev-token                # ← this is all you need for M
 }
 ```
 
-That's it — `SECHEL_DEV_TOKEN` bypasses all auth, so you're admin immediately.
+Eso es todo — `SECHEL_DEV_TOKEN` omite toda la autenticación, por lo que usted
+es admin de inmediato.
 
-You can **optionally** use the Admin API to create API tokens or manage users
-instead of relying on the dev token:
+Puede **opcionalmente** usar la Admin API para crear tokens de API o gestionar
+usuarios en lugar de depender del token de desarrollo:
 
 ```bash
 # Login → JWT
@@ -83,15 +91,17 @@ curl -X POST https://your-server.example/admin/tokens \
 
 ---
 
-## Profile B: Multi-user (real API tokens) — the production flow
+## Perfil B: Multi-usuario (tokens de API reales) — el flujo de producción
 
-Multiple agents or developers, each with their own token. Tokens can be revoked
-individually. Users have roles (`admin` / `member`).
+Varios agentes o desarrolladores, cada uno con su propio token. Los tokens se
+pueden revocar de forma individual. Los usuarios tienen roles
+(`admin` / `member`).
 
-These steps assume an **already-deployed** server — this is the flow validated
-live against a Vercel deployment.
+Estos pasos asumen un servidor **ya desplegado** — este es el flujo validado en
+vivo contra un despliegue de Vercel.
 
-**1. `.env`** — production config. `SECHEL_DEV_TOKEN` MUST be empty or unset:
+**1. `.env`** — configuración de producción. `SECHEL_DEV_TOKEN` DEBE estar
+vacío o sin definir:
 
 ```bash
 DATABASE_URL=libsql://your-db.turso.io
@@ -104,17 +114,17 @@ ADMIN_PASSWORD=your-strong-password
 # SECHEL_DEV_TOKEN=   ← MUST be empty/unset in production
 ```
 
-**2. Deploy** — Docker, Cloudflare Workers, or Vercel. See
-[Deployment](#deployment).
+**2. Despliegue** — Docker, Cloudflare Workers o Vercel. Consulte
+[Despliegue](#despliegue).
 
-**3. Verify health:**
+**3. Verifique el estado (health):**
 
 ```bash
 curl https://your-server.com/admin/health
 # → 200 { "status": "ok", ... }
 ```
 
-**4. Login as admin → JWT:**
+**4. Inicie sesión como admin → JWT:**
 
 ```bash
 curl -X POST https://your-server.com/admin/auth/login \
@@ -123,7 +133,7 @@ curl -X POST https://your-server.com/admin/auth/login \
 # → { "token": "eyJ...", "user": { "role": "admin" } }
 ```
 
-**5. Create an API token** — the `raw` value is shown **ONCE**:
+**5. Cree un token de API** — el valor `raw` se muestra una **única** vez:
 
 ```bash
 curl -X POST https://your-server.com/admin/tokens \
@@ -133,7 +143,7 @@ curl -X POST https://your-server.com/admin/tokens \
 # → { "raw": "<80-char-hex>", ... }   ← save this NOW
 ```
 
-**6. Each client connects with its own token** to `POST /mcp`:
+**6. Cada cliente se conecta con su propio token** a `POST /mcp`:
 
 ```json
 {
@@ -147,23 +157,24 @@ curl -X POST https://your-server.com/admin/tokens \
 }
 ```
 
-**7. Token lifecycle:** revoke anytime via `DELETE /admin/tokens/:id`. Tokens
-are stored only as a SHA-256 hash, so the raw value **cannot be recovered** — if
-it is lost, revoke and re-create.
+**7. Ciclo de vida del token:** revoque en cualquier momento mediante
+`DELETE /admin/tokens/:id`. Los tokens se almacenan solo como hash SHA-256, por
+lo que el valor `raw` **no se puede recuperar** — si se pierde, revoque y
+vuelva a crearlo.
 
 ---
 
-## Troubleshooting / Pitfalls
+## Solución de problemas / Errores comunes
 
-Live-learned issues and how to avoid them.
+Problemas detectados en la práctica y cómo evitarlos.
 
-### Windows PowerShell: use `curl.exe` and single quotes
+### Windows PowerShell: use `curl.exe` y comillas simples
 
-PowerShell aliases `curl` to `Invoke-WebRequest`, which mangles curl options.
-Use `curl.exe` explicitly.
+PowerShell asigna un alias a `curl` hacia `Invoke-WebRequest`, lo que corrompe
+las opciones de curl. Use `curl.exe` de forma explícita.
 
-JSON bodies: **single quotes outside, normal double quotes inside**. Do NOT
-escape the quotes with backslashes:
+Cuerpos JSON: **comillas simples por fuera, comillas dobles normales por
+dentro**. NO escape las comillas con barras invertidas:
 
 ```powershell
 # ✔ correct — single quotes outside, plain double quotes inside
@@ -178,30 +189,32 @@ curl.exe -X POST http://localhost:3001/admin/auth/login `
 # → 400 { "error": "username and password are required" }
 ```
 
-Multi-line continuation in PowerShell uses the backtick `` ` `` — not `\`
-(that's bash).
+La continuación multilínea en PowerShell usa el backtick `` ` `` — no `\` (eso
+es bash).
 
-### The /mcp endpoint does NOT accept session JWTs
+### El endpoint /mcp NO acepta JWTs de sesión
 
-`/mcp` only accepts **API tokens** (created via `POST /admin/tokens`, stored as
-SHA-256 in `user_tokens`) or `SECHEL_DEV_TOKEN`. A JWT from
-`POST /admin/auth/login` returns `401 Unauthorized` on `/mcp` — that's expected
-by design. Use the JWT only for the Admin REST API.
+`/mcp` solo acepta **tokens de API** (creados mediante `POST /admin/tokens`,
+almacenados como SHA-256 en `user_tokens`) o `SECHEL_DEV_TOKEN`. Un JWT de
+`POST /admin/auth/login` devuelve `401 Unauthorized` en `/mcp` — eso es
+esperado por diseño. Use el JWT solo para la Admin REST API.
 
-### Save the raw token immediately
+### Guarde el valor raw del token de inmediato
 
-The raw value is returned **once** at creation and stored only as a SHA-256
-hash. It can never be looked up again. If you lose it, revoke and re-create.
+El valor `raw` se devuelve **una vez** en la creación y se almacena solo como
+hash SHA-256. Nunca se puede volver a consultar. Si lo pierde, revoque y
+vuelva a crearlo.
 
-### Generate a JWT_SECRET
+### Genere un JWT_SECRET
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-### Verify the full pipeline
+### Verifique el pipeline completo
 
-health → login → create token → MCP initialize → ping:
+estado (health) → inicio de sesión → creación de token → inicialización MCP →
+ping:
 
 ```bash
 # 1. Health
@@ -233,30 +246,30 @@ curl -X POST https://your-server.com/mcp \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"ping","arguments":{}}}'
 ```
 
-### Live example
+### Ejemplo en vivo
 
-The health, login, and tokens endpoints are verified live at
+Los endpoints de health, login y tokens están verificados en vivo en
 <https://sechel-server.vercel.app>.
 
 ---
 
-## Reference
+## Referencia
 
 ### Admin REST API
 
-All admin routes are mounted under `/admin` (configurable via the `prefix`
-option).
+Todas las rutas de admin se montan bajo `/admin` (configurable mediante la
+opción `prefix`).
 
-#### Authentication
+#### Autenticación
 
-Login returns a **JWT**. Send it as:
+El inicio de sesión devuelve un **JWT**. Envíelo como:
 
 ```
 Authorization: Bearer <jwt>
 Cookie: session=<jwt>           (for web clients)
 ```
 
-#### Public routes (no auth required)
+#### Rutas públicas (sin autenticación)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -272,7 +285,7 @@ Cookie: session=<jwt>           (for web clients)
 
 #### Endpoints
 
-##### Auth
+##### Autenticación
 
 ```bash
 POST /admin/auth/login
@@ -284,7 +297,7 @@ Content-Type: application/json
 → 401 { "error": "Invalid credentials" }
 ```
 
-##### Users (admin only)
+##### Usuarios (solo admin)
 
 ```bash
 # List users
@@ -332,10 +345,10 @@ Content-Type: application/json
 → 400 { "error": "permission must be read, write, or none" }
 ```
 
-##### API Tokens (admin only)
+##### Tokens de API (solo admin)
 
-Tokens are generated server-side (external tokens are not accepted). Stored as
-SHA-256; the raw value is returned **once** at creation.
+Los tokens se generan en el servidor (no se aceptan tokens externos). Se
+almacenan como SHA-256; el valor `raw` se devuelve **una vez** en la creación.
 
 ```bash
 # List tokens (no hash, no raw)
@@ -361,9 +374,10 @@ Authorization: Bearer <jwt>
 → 404 { "error": "Token not found" }
 ```
 
-> **Save the `raw` value** — it is never stored in plain text and cannot be retrieved later.
+> **Guarde el valor `raw`** — nunca se almacena en texto plano y no se puede
+> recuperar más tarde.
 
-##### Settings (admin only)
+##### Configuración (solo admin)
 
 ```bash
 # Get all settings
@@ -383,7 +397,7 @@ Content-Type: application/json
 → 400 { "error": "Unknown setting key: ..." }
 ```
 
-### MCP Endpoint
+### Endpoint MCP
 
 ```
 POST /mcp
@@ -392,21 +406,23 @@ Content-Type: application/json
 Accept: application/json, text/event-stream
 ```
 
-#### How auth works
+#### Cómo funciona la autenticación
 
-`verifyToken()` checks in order:
+`verifyToken()` verifica en orden:
 
-1. **SECHEL_DEV_TOKEN** — if the Bearer token matches this env var, you're
-   granted admin access immediately. For development and single-user setups.
-2. **SHA-256 lookup in `user_tokens`** — hashes the token and searches the DB.
-   Verifies the user is active.
+1. **SECHEL_DEV_TOKEN** — si el token Bearer coincide con esta variable de
+   entorno, se le otorga acceso de admin de inmediato. Para desarrollo y
+   configuraciones de un solo usuario.
+2. **Búsqueda SHA-256 en `user_tokens`** — aplica hash al token y busca en la
+   base de datos. Verifica que el usuario esté activo.
 
-No token or invalid token → `401 Unauthorized`.
+Sin token o con token inválido → `401 Unauthorized`.
 
-> **Important**: The MCP endpoint does **NOT** accept session JWTs. Use an
-> **API token** (created via `POST /admin/tokens`) or `SECHEL_DEV_TOKEN`.
+> **Importante**: El endpoint MCP **NO** acepta JWTs de sesión. Use un
+> **token de API** (creado mediante `POST /admin/tokens`) o
+> `SECHEL_DEV_TOKEN`.
 
-#### Required headers
+#### Encabezados requeridos
 
 | Header | Value |
 |--------|-------|
@@ -414,11 +430,12 @@ No token or invalid token → `401 Unauthorized`.
 | `Content-Type` | `application/json` |
 | `Accept` | `application/json, text/event-stream` |
 
-Missing `Accept: text/event-stream` → `406 Not Acceptable`.
+Falta de `Accept: text/event-stream` → `406 Not Acceptable`.
 
-#### Exposed tools
+#### Herramientas expuestas
 
-The server exposes 22 `mem_*` tools plus `ping` (identical to Engram's API):
+El servidor expone 22 herramientas `mem_*` más `ping` (idénticas a la API de
+Engram):
 
 | Tool | Description |
 |------|-------------|
@@ -443,7 +460,7 @@ The server exposes 22 `mem_*` tools plus `ping` (identical to Engram's API):
 | `mem_merge_projects` | Rename projects |
 | `mem_capture_passive` | Extract learnings from text |
 
-#### MCP flow example
+#### Ejemplo de flujo MCP
 
 ```bash
 # 1. Initialize
@@ -481,7 +498,7 @@ curl -X POST http://localhost:3001/mcp \
   }'
 ```
 
-### Environment variables
+### Variables de entorno
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -496,31 +513,32 @@ curl -X POST http://localhost:3001/mcp \
 | `TENANT_ID` | No | Tenant ID (default: `"default"`) |
 | `PORT` | No | HTTP port for the Node entry (default: `3001`) |
 
-\* Not required for embedded databases (`file:` / `:memory:`).
+\* No requerido para bases de datos embebidas (`file:` / `:memory:`).
 
-`TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` are legacy aliases of
-`DATABASE_URL` / `DATABASE_AUTH_TOKEN` — only one pair is needed.
+`TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` son alias heredados de
+`DATABASE_URL` / `DATABASE_AUTH_TOKEN` — solo se necesita un par.
 
-### Local development
+### Desarrollo local
 
 ```bash
 pnpm -C apps/server dev        # primary dev command
 # or, from the repo root: npx tsx apps/server/dev.ts
 ```
 
-This creates `sechel-dev.db` in `apps/server/`, runs migrations, seeds the
-default admin, and starts on `http://localhost:3001`.
+Esto crea `sechel-dev.db` en `apps/server/`, ejecuta las migraciones, crea el
+admin por defecto e inicia en `http://localhost:3001`.
 
-#### Entry points
+#### Puntos de entrada
 
-- `src/index.ts` — runtime-agnostic Hono app (default export), used by Vercel
-  and Cloudflare Workers.
-- `src/entry-node.ts` — Node.js production entry (`npm start` / Docker); runs
-  `ensureSeeded()`, then serves on `PORT` (default `3001`).
-- `dev.ts` — local development entry: creates `sechel-dev.db` (SQLite), seeds
-  the admin, and serves on `http://localhost:3001`.
+- `src/index.ts` — aplicación Hono independiente del runtime (exportación por
+  defecto), usada por Vercel y Cloudflare Workers.
+- `src/entry-node.ts` — entrada de producción de Node.js (`npm start` /
+  Docker); ejecuta `ensureSeeded()` y luego sirve en `PORT` (por defecto
+  `3001`).
+- `dev.ts` — entrada de desarrollo local: crea `sechel-dev.db` (SQLite), crea
+  el admin y sirve en `http://localhost:3001`.
 
-#### Default dev credentials
+#### Credenciales de desarrollo por defecto
 
 | Field | Value |
 |-------|-------|
@@ -528,16 +546,17 @@ default admin, and starts on `http://localhost:3001`.
 | Password | `admin123` |
 | Dev token | `sk-dev-token` (for MCP) |
 
-Configurable via env vars: `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECHEL_DEV_TOKEN`.
+Configurables mediante variables de entorno: `ADMIN_USERNAME`,
+`ADMIN_PASSWORD`, `SECHEL_DEV_TOKEN`.
 
-#### Tests
+#### Pruebas
 
 ```bash
 pnpm -C apps/server test        # 40 tests (admin CRUD + MCP + auth)
 pnpm -C apps/server test:watch  # watch mode
 ```
 
-### Deployment
+### Despliegue
 
 #### Docker
 
@@ -556,36 +575,40 @@ pnpm -C apps/server deploy:cf
 
 #### Vercel
 
-Vercel deploys the server as a serverless function via the **Hono** framework
-preset — the default export in `src/index.ts` is the entry point (no `api/`
-functions or rewrites needed).
+Vercel despliega el servidor como una función serverless mediante el preset de
+framework **Hono** — la exportación por defecto en `src/index.ts` es el punto
+de entrada (no se necesitan funciones `api/` ni rewrites).
 
-**Prereqs**: a Turso database URL + auth token, plus `JWT_SECRET` and
-`TENANT_ID`.
+**Requisitos previos**: una URL de base de datos Turso + token de
+autenticación, además de `JWT_SECRET` y `TENANT_ID`.
 
-**Vercel project setup**: Root Directory = `apps/server`, Framework Preset =
-**Hono**. Set these env vars: `DATABASE_URL` (`libsql://...`),
-`DATABASE_AUTH_TOKEN`, `JWT_SECRET`, `TENANT_ID`, and optionally
-`ADMIN_USERNAME` / `ADMIN_PASSWORD` and `SECHEL_DEV_TOKEN`.
+**Configuración del proyecto en Vercel**: Root Directory = `apps/server`,
+Framework Preset = **Hono**. Configure estas variables de entorno:
+`DATABASE_URL` (`libsql://...`), `DATABASE_AUTH_TOKEN`, `JWT_SECRET`,
+`TENANT_ID` y, opcionalmente, `ADMIN_USERNAME` / `ADMIN_PASSWORD` y
+`SECHEL_DEV_TOKEN`.
 
-**Seed the DB first**: `ensureSeeded()` only runs on the Node entry, so seed
-the Turso database beforehand — e.g. run `pnpm --filter @sechel/server start`
-once locally with `DATABASE_URL` / `DATABASE_AUTH_TOKEN` pointing at the remote
-DB, or use the dev entry / a script.
+**Inicialice la base de datos primero**: `ensureSeeded()` solo se ejecuta en la
+entrada de Node, por lo que debe inicializar la base de datos Turso de
+antemano — por ejemplo, ejecute `pnpm --filter @sechel/server start` una vez en
+local con `DATABASE_URL` / `DATABASE_AUTH_TOKEN` apuntando a la base de datos
+remota, o use la entrada de desarrollo / un script.
 
 ```bash
 pnpm -C apps/server deploy:vercel
 # or, from apps/server: vercel deploy --prod
 ```
 
-### Multi-user with Panel
+### Multi-usuario con Panel
 
-When deployed alongside `apps/panel`, user and token management is done through
-the Astro admin UI. The server only exposes the MCP endpoint.
+Cuando se despliega junto a `apps/panel`, la gestión de usuarios y tokens se
+realiza a través de la interfaz de administración de Astro. El servidor solo
+expone el endpoint MCP.
 
-See [`apps/panel/README.md`](../panel/README.md) for the full deployment guide.
+Consulte [`apps/panel/README.md`](../panel/README.md) para la guía de
+despliegue completa.
 
-### OpenCode configuration
+### Configuración de OpenCode
 
 ```json
 {
@@ -603,6 +626,6 @@ See [`apps/panel/README.md`](../panel/README.md) for the full deployment guide.
 
 ---
 
-### License
+### Licencia
 
-MIT — see [LICENSE](../../LICENSE) at the repo root.
+MIT — consulte [LICENSE](../../LICENSE) en la raíz del repositorio.
