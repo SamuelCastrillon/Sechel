@@ -5,6 +5,7 @@ import type { Env } from './index.js';
 import { seedAdmin } from './admin/seed.js';
 import { createSessionToken, verifyPassword } from './admin/auth.js';
 import { authMiddleware } from './admin/auth-middleware.js';
+import { registerRegisterRoutes } from './admin/register.js';
 import { registerUserRoutes } from './admin/users.js';
 import { registerSettingsRoutes } from './admin/settings.js';
 import { registerTokenRoutes } from './admin/tokens.js';
@@ -212,6 +213,9 @@ export function registerAdminRoutes(
       return c.json({ error: message }, 500);
     }
   });
+
+  // ---- Auth register + public settings (public, exempt from JWT) ----
+  registerRegisterRoutes(adminRouter);
 
   // ---- CRUD sub-routers ----
   registerUserRoutes(adminRouter);

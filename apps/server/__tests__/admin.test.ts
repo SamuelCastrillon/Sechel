@@ -471,3 +471,94 @@ describe('Admin API — Route prefix support', () => {
     expect(usersRes.status).toBe(200);
   });
 });
+
+describe('Admin API — Registration', () => {
+  const register = (body: Record<string, unknown>) =>
+    app.request(
+      '/admin/auth/register',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      testEnv,
+    );
+
+  it('is accessible without a token (public, exempt path)', async () => {
+    const res = await app.request('/admin/auth/register', { method: 'POST' }, testEnv);
+    // Reached the handler (not blocked by auth middleware): 400 because no body.
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 403 when registration is disabled', async () => {
+    await sql`
+      INSERT INTO instance_settings (key, value)
+      VALUES ('registration_enabled', '0')
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `.execute(db);
+
+    const res = await register({ username: 'reguser1', password: 'password123' });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'Registration is disabled' });
+  });
+
+  it('returns 201 and creates a pending (is_active=0) member when enabled', async () => {
+    await sql`
+      INSERT INTO instance_settings (key, value)
+      VALUES ('registration_enabled', '1')
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `.execute(db);
+
+    const res = await register({ username: 'reguser2', password: 'password123' });
+    expect(res.status).toBe(201);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.username).toBe('reguser2');
+    expect(body.role).toBe('member');
+    expect(body.is_active).toBe(0);
+    expect(typeof body.id).toBe('number');
+  });
+
+  it('returns 409 for duplicate username', async () => {
+    const res = await register({ username: 'reguser2', password: 'password123' });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'Username already exists' });
+  });
+
+  it('returns 400 for a password shorter than 8 characters', async () => {
+    const res = await register({ username: 'reguser3', password: 'short' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'password must be at least 8 characters',
+    });
+  });
+
+  it('returns 400 when fields are missing', async () => {
+    const res = await register({ username: 'reguser4' });
+    expect(res.status).toBe(400);
+  });
+
+  it('does NOT auto-login (no Set-Cookie) on success', async () => {
+    const res = await register({ username: 'reguser5', password: 'password123' });
+    expect(res.status).toBe(201);
+    expect(res.headers.get('Set-Cookie')).toBeNull();
+  });
+
+  it('GET /admin/public/registration-enabled reflects the setting', async () => {
+    await sql`
+      INSERT INTO instance_settings (key, value)
+      VALUES ('registration_enabled', '1')
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `.execute(db);
+    const on = await app.request('/admin/public/registration-enabled', {}, testEnv);
+    expect(on.status).toBe(200);
+    expect((await on.json())).toEqual({ enabled: true });
+
+    await sql`
+      UPDATE instance_settings SET value = '0' WHERE key = 'registration_enabled'
+    `.execute(db);
+    const off = await app.request('/admin/public/registration-enabled', {}, testEnv);
+    expect(off.status).toBe(200);
+    expect((await off.json())).toEqual({ enabled: false });
+  });
+});
+

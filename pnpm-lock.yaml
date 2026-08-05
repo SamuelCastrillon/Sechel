@@ -101,7 +101,7 @@ importers:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
-        version: 1.29.0(zod@4.1.11)
+        version: 1.29.0(zod@3.25.76)
       '@sechel-mcp/core':
         specifier: ^0.3.1
         version: 0.3.1
@@ -136,6 +136,9 @@ importers:
       '@astrojs/vercel':
         specifier: ^8.2.11
         version: 8.2.11(astro@5.18.2(@types/node@20.19.43)(@vercel/functions@3.7.5(ws@8.21.0))(jiti@2.7.0)(lightningcss@1.32.0)(rollup@4.62.2)(tsx@4.23.0)(typescript@5.9.3))(next@15.5.20(@babel/core@7.29.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(rollup@4.62.2)
+      '@sechel-mcp/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@sechel/server':
         specifier: workspace:*
         version: link:../server
@@ -1805,6 +1808,12 @@ packages:
   '@rushstack/eslint-patch@1.16.1':
     resolution: {integrity: sha512-TvZbIpeKqGQQ7X0zSCvPH9riMSFQFSggnfBjFZ1mEoILW+UuXCKwOoPcgjMwiUtRqFZ8jWhPJc4um14vC6I4ag==}
 
+  '@sechel-mcp/core@0.3.1':
+    resolution: {integrity: sha512-LfBmHcicVJVVEUJwtaPKiRlklbkcq53Uc+ECydLAaRW0XmETM3f3NY2PdhwJda6UqFZ4VUzVB/ScTkisLMM18w==}
+
+  '@sechel-mcp/mcp-server@0.3.1':
+    resolution: {integrity: sha512-wl6ScqrxGw+x3c25Yj9IpPhthlZrMVCMAa+4x1jcgGog7a+Fu0YcPRQ10JB23qNwOWKSZSfiZexkJPoUBHc1nA==}
+
   '@shikijs/core@3.23.0':
     resolution: {integrity: sha512-NSWQz0riNb67xthdm5br6lAkvpDJRTgB36fxlo37ZzM2yq0PQFFzbd8psqC2XMPgCzo1fW6cVi18+ArJ44wqgA==}
 
@@ -1832,12 +1841,6 @@ packages:
 
   '@speed-highlight/core@1.2.17':
     resolution: {integrity: sha512-Z92FwKpCtfaW1V0jTU/fh3QzYEZN8wDwrzRIBoADCJfn4mJCNcJN/XegifX7BDrQ8/h9Xh/JnbyMchL0FqXrkg==}
-
-  '@sechel-mcp/core@0.3.1':
-    resolution: {integrity: sha512-LfBmHcicVJVVEUJwtaPKiRlklbkcq53Uc+ECydLAaRW0XmETM3f3NY2PdhwJda6UqFZ4VUzVB/ScTkisLMM18w==}
-
-  '@sechel-mcp/mcp-server@0.3.1':
-    resolution: {integrity: sha512-wl6ScqrxGw+x3c25Yj9IpPhthlZrMVCMAa+4x1jcgGog7a+Fu0YcPRQ10JB23qNwOWKSZSfiZexkJPoUBHc1nA==}
 
   '@swc/helpers@0.5.15':
     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
@@ -3572,7 +3575,6 @@ packages:
 
   libsql@0.5.29:
     resolution: {integrity: sha512-8lMP8iMgiBzzoNbAPQ59qdVcj6UaE/Vnm+fiwX4doX4Narook0a4GPKWBEv+CR8a1OwbfkgL18uBfBjWdF0Fzg==}
-    cpu: [x64, arm64, wasm32, arm]
     os: [darwin, linux, win32]
 
   lightningcss-android-arm64@1.32.0:
@@ -6272,6 +6274,29 @@ snapshots:
 
   '@rushstack/eslint-patch@1.16.1': {}
 
+  '@sechel-mcp/core@0.3.1':
+    dependencies:
+      '@libsql/client': 0.15.15
+      hash-wasm: 4.12.0
+      jose: 5.10.0
+      kysely: 0.28.17
+      kysely-libsql: 0.7.1(kysely@0.28.17)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@sechel-mcp/mcp-server@0.3.1':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
+      '@sechel-mcp/core': 0.3.1
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+
   '@shikijs/core@3.23.0':
     dependencies:
       '@shikijs/types': 3.23.0
@@ -6308,29 +6333,6 @@ snapshots:
   '@sindresorhus/is@7.2.0': {}
 
   '@speed-highlight/core@1.2.17': {}
-
-  '@sechel-mcp/core@0.3.1':
-    dependencies:
-      '@libsql/client': 0.15.15
-      hash-wasm: 4.12.0
-      jose: 5.10.0
-      kysely: 0.28.17
-      kysely-libsql: 0.7.1(kysely@0.28.17)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
-  '@sechel-mcp/mcp-server@0.3.1':
-    dependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
-      '@sechel-mcp/core': 0.3.1
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - bufferutil
-      - supports-color
-      - utf-8-validate
 
   '@swc/helpers@0.5.15':
     dependencies:

@@ -8,7 +8,12 @@ import { verifySessionToken } from './auth.js';
  * These must match the mounted prefix-relative paths
  * (e.g. '/health' not '/admin/health').
  */
-export const EXEMPT_PATHS = ['/health', '/auth/login'];
+export const EXEMPT_PATHS = [
+  '/health',
+  '/auth/login',
+  '/auth/register',
+  '/public/registration-enabled',
+];
 
 /**
  * Auth middleware for admin routes.

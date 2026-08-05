@@ -10,7 +10,7 @@
     },
     "composite": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.astro"],
+  "include": [".astro/types.d.ts", "src/**/*.ts", "src/**/*.tsx", "src/**/*.astro"],
   "references": [
     { "path": "../server" }
   ]

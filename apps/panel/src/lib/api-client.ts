@@ -88,6 +88,7 @@ export async function listTokens(): Promise<ApiToken[]> {
 export async function createToken(): Promise<{ token: ApiToken; raw: string }> {
   return request('/tokens', {
     method: 'POST',
+    body: JSON.stringify({ description: 'created from panel' }),
   });
 }
 

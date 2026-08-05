@@ -93,6 +93,24 @@ describe('api-client — tokens', () => {
     expect(tokens).toHaveLength(1);
   });
 
+  it('createToken sends POST with a default description', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ token: { id: 1, prefix: 'sk_abc', created_at: '' }, raw: 'abc' }),
+    });
+
+    const { createToken } = await import('@/lib/api-client');
+    await createToken();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/admin/tokens',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ description: 'created from panel' }),
+      }),
+    );
+  });
+
   it('revokeToken calls DELETE', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({}) });
 

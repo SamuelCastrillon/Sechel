@@ -1,8 +1,28 @@
 ---
 import AuthLayout from '@/layouts/AuthLayout.astro';
 import { RegisterForm } from '@/components/auth/RegisterForm';
+import { handleApiRequest, embeddedEnvFromLocals } from '@/server/index';
+
+// SSR: read the registration_enabled setting via the embedded Hono app
+// (public endpoint, no auth). Fall back to disabled if anything fails.
+// Env is resolved from Cloudflare locals when present, otherwise from the
+// panel env (import.meta.env / process.env) — see server/index.ts.
+let enabled = false;
+try {
+  const env = embeddedEnvFromLocals(Astro.locals as unknown as Record<string, unknown>);
+  const res = await handleApiRequest(
+    new Request('http://internal/api/admin/public/registration-enabled'),
+    env,
+  );
+  if (res.ok) {
+    const body = await res.json();
+    enabled = body.enabled === true;
+  }
+} catch {
+  enabled = false;
+}
 ---
 
 <AuthLayout title="Register">
-  <RegisterForm client:load />
+  <RegisterForm client:load enabled={enabled} />
 </AuthLayout>
