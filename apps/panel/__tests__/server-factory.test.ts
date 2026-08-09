@@ -52,6 +52,8 @@ describe('embeddedEnvFromLocals', () => {
           DATABASE_AUTH_TOKEN: 'tok',
           JWT_SECRET: 'secret',
           TENANT_ID: 't1',
+          ADMIN_USERNAME: 'cf-admin',
+          ADMIN_PASSWORD: 'cf-admin-password',
           ASSETS: { fetch: () => Promise.resolve(new Response()) },
         },
       },
@@ -60,6 +62,8 @@ describe('embeddedEnvFromLocals', () => {
     expect(env?.DATABASE_AUTH_TOKEN).toBe('tok');
     expect(env?.JWT_SECRET).toBe('secret');
     expect(env?.TENANT_ID).toBe('t1');
+    expect(env?.ADMIN_USERNAME).toBe('cf-admin');
+    expect(env?.ADMIN_PASSWORD).toBe('cf-admin-password');
   });
 
   it('returns undefined when locals has no runtime (node/vercel)', () => {
@@ -147,6 +151,28 @@ describe('createEmbeddedApp', () => {
       TEST_ENV,
     );
     expect(res.status).toBe(401);
+  });
+
+  it('seeds the first admin from ADMIN_* env when missing (fresh deploy)', async () => {
+    const env: EmbeddedAppEnv = {
+      ...TEST_ENV,
+      ADMIN_USERNAME: 'seeded-admin',
+      ADMIN_PASSWORD: 'seeded-password',
+    };
+    const { app } = await createEmbeddedApp(env);
+
+    // No manual user insert: login must work right after app creation.
+    const res = await app.fetch(
+      new Request('http://localhost:3000/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'seeded-admin', password: 'seeded-password' }),
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.user).toEqual({ id: 1, username: 'seeded-admin', role: 'admin' });
   });
 });
 

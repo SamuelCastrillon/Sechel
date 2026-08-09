@@ -1,27 +1,40 @@
-import { SignJWT, jwtVerify } from 'jose';
+import { jwtVerify } from 'jose';
 import type { SessionPayload } from './types';
 
-function getSecret(): Uint8Array {
-  const raw = process.env.JWT_SECRET;
+/**
+ * Resolve the JWT secret through the same strategy the embedded server uses
+ * (see apps/panel/src/server/index.ts resolveEmbeddedEnv):
+ *
+ * 1. `override` — Cloudflare runtime bindings arrive via locals.runtime.env,
+ *    which the middleware passes through for every request.
+ * 2. `import.meta.env` — Astro loads `.env` there (local dev, Vercel).
+ * 3. `process.env` — built Node deployments (docker / node entry).
+ *
+ * Signer and verifier must agree on the secret, otherwise every valid token
+ * is rejected and /admin/* redirects in a loop.
+ */
+export function resolveJwtSecret(override?: string): string | undefined {
+  if (override) return override;
+  const meta = (import.meta as unknown as { env?: Record<string, string | undefined> })
+    .env ?? {};
+  const proc = typeof process !== 'undefined' ? process.env : undefined;
+  return meta.JWT_SECRET ?? proc?.JWT_SECRET;
+}
+
+function getSecret(override?: string): Uint8Array {
+  const raw = resolveJwtSecret(override);
   if (!raw) throw new Error('JWT_SECRET environment variable is required');
   return new TextEncoder().encode(raw);
 }
 
 const COOKIE_NAME = 'session';
 
-export async function createSessionToken(payload: SessionPayload): Promise<string> {
-  return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime('15m')
-    .sign(getSecret());
-}
-
 export async function verifySessionToken(
   token: string,
+  secret?: string,
 ): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecret(), {
+    const { payload } = await jwtVerify(token, getSecret(secret), {
       algorithms: ['HS256'],
     });
     const userId = payload.userId as number | undefined;
@@ -37,12 +50,4 @@ export function parseSessionCookie(cookieHeader: string | null): string | null {
   if (!cookieHeader) return null;
   const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${COOKIE_NAME}=([^;]*)`));
   return match ? match[1] : null;
-}
-
-export function getSessionCookieString(token: string): string {
-  return `${COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=900; SameSite=Lax`;
-}
-
-export function clearSessionCookieString(): string {
-  return `${COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`;
 }

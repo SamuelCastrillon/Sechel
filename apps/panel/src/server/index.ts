@@ -1,4 +1,4 @@
-import { createApp as createSechelApp } from '@sechel/server';
+import { createApp as createSechelApp, seedAdminFromDb } from '@sechel/server';
 import { createDb } from '@sechel-mcp/core';
 
 /**
@@ -11,6 +11,8 @@ export interface EmbeddedAppEnv {
   DATABASE_AUTH_TOKEN?: string;
   JWT_SECRET?: string;
   TENANT_ID?: string;
+  ADMIN_USERNAME?: string;
+  ADMIN_PASSWORD?: string;
 }
 
 // Derived from createDb's own return type to avoid a Kysely dual-package
@@ -43,6 +45,8 @@ export function resolveEmbeddedEnv(override?: EmbeddedAppEnv): EmbeddedAppEnv {
     DATABASE_AUTH_TOKEN: meta.DATABASE_AUTH_TOKEN ?? proc?.DATABASE_AUTH_TOKEN,
     JWT_SECRET: meta.JWT_SECRET ?? proc?.JWT_SECRET,
     TENANT_ID: meta.TENANT_ID ?? proc?.TENANT_ID,
+    ADMIN_USERNAME: meta.ADMIN_USERNAME ?? proc?.ADMIN_USERNAME,
+    ADMIN_PASSWORD: meta.ADMIN_PASSWORD ?? proc?.ADMIN_PASSWORD,
   };
 }
 
@@ -64,6 +68,8 @@ export function embeddedEnvFromLocals(
     DATABASE_AUTH_TOKEN: runtime.env.DATABASE_AUTH_TOKEN,
     JWT_SECRET: runtime.env.JWT_SECRET,
     TENANT_ID: runtime.env.TENANT_ID,
+    ADMIN_USERNAME: runtime.env.ADMIN_USERNAME,
+    ADMIN_PASSWORD: runtime.env.ADMIN_PASSWORD,
   };
 }
 
@@ -89,6 +95,17 @@ export async function createEmbeddedApp(env: EmbeddedAppEnv): Promise<EmbeddedAp
     url: env.DATABASE_URL,
     authToken: env.DATABASE_AUTH_TOKEN,
   });
+  // Seed the first admin from ADMIN_* bindings when missing (create-only —
+  // an existing credential_hash is never overwritten, so DB-side password
+  // changes survive restarts). This is what makes fresh Cloudflare
+  // deployments and .env-only dev setups reachable: the standalone server's
+  // bootstrapAdmin reads process.env, which the embedded panel never has.
+  if (env.ADMIN_USERNAME && env.ADMIN_PASSWORD) {
+    await seedAdminFromDb(db, env.TENANT_ID ?? 'default', {
+      username: env.ADMIN_USERNAME,
+      password: env.ADMIN_PASSWORD,
+    });
+  }
   const app = createSechelApp({
     db,
     prefix: '/api/admin',
