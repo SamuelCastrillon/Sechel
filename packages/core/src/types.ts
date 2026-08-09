@@ -79,6 +79,22 @@ export interface InstanceSettingsTable {
   updated_at: ColumnType<string, string | undefined, string>;
 }
 
+export interface AuthSessionsTable {
+  id: string;
+  tenant_id: string;
+  user_id: number;
+  device_name: string | null;
+  user_agent: string | null;
+  ip: string | null;
+  created_at: ColumnType<string, string | undefined, string>;
+  last_used_at: ColumnType<string, string | undefined, string>;
+  expires_at: string;
+  revoked_at: string | null;
+  refresh_hash: string | null;
+  lineage_id: string;
+  prev_hash: string | null;
+}
+
 export interface UsersTable {
   id: Generated<number>;
   tenant_id: string;
@@ -118,6 +134,7 @@ export interface CortexDB {
   user_project_access: UserProjectAccessTable;
   user_tokens: UserTokensTable;
   instance_settings: InstanceSettingsTable;
+  auth_sessions: AuthSessionsTable;
   _migrations: { version: string; applied_at: string };
 }
 

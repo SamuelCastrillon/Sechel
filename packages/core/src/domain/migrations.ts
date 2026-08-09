@@ -46,8 +46,8 @@ export function splitStatements(sql: string): string[] {
 }
 
 // Embedded migration SQL — no file reads needed.
-// Kept in sync with modules/core/db/migrations/0001_init.sql and 0002_auth.sql.
-const EMBEDDED_MIGRATIONS: Migration[] = [
+// Kept in sync with modules/core/db/migrations/0001_init.sql, 0002_auth.sql and 0003_auth_sessions.sql.
+export const EMBEDDED_MIGRATIONS: Migration[] = [
   {
     version: '0001_init',
     sql: `-- Sechel Slice 1 schema (authoritative).
@@ -219,6 +219,37 @@ CREATE TABLE IF NOT EXISTS instance_settings (
 ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1;
 
 UPDATE users SET is_active = 1 WHERE is_active IS NULL OR is_active = 0;`,
+  },
+  {
+    version: '0003_auth_sessions',
+    sql: `-- Sechel auth sessions schema: per-device revocable sessions (AS-1).
+-- Idempotent: every object uses IF NOT EXISTS.
+-- refresh_hash stores the SHA-256 of the opaque refresh token (plaintext never persisted)
+-- The unique index is partial so a revoked session may drop its hash without collisions
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id           TEXT NOT NULL,
+  tenant_id    TEXT NOT NULL,
+  user_id      INTEGER NOT NULL,
+  device_name  TEXT,
+  user_agent   TEXT,
+  ip           TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  last_used_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at   TEXT NOT NULL,
+  revoked_at   TEXT,
+  refresh_hash TEXT,
+  lineage_id   TEXT NOT NULL,
+  prev_hash    TEXT,
+  PRIMARY KEY (tenant_id, id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_lineage ON auth_sessions(lineage_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_refresh_hash
+  ON auth_sessions(refresh_hash)
+  WHERE refresh_hash IS NOT NULL;`,
   },
 ];
 
