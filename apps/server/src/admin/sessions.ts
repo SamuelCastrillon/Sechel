@@ -43,9 +43,33 @@ export function registerSessionRoutes(router: Hono, jwtSecret?: string): void {
     let presented: string | undefined;
 
     const cookie = c.req.header('Cookie');
+    let cookieAuth = false;
     if (cookie) {
       const match = cookie.match(/(?:^|;\s*)refresh=([^;]+)/);
-      if (match) presented = match[1];
+      if (match) {
+        presented = match[1];
+        cookieAuth = true;
+      }
+    }
+
+    // CSRF defense-in-depth: cookie-authenticated refresh must be same-origin
+    // (SameSite=Lax blocks cross-site POSTs, but a same-site-subdomain or
+    // downgrade scenario must not be able to replay the ambient credential).
+    // Body-transport refresh tokens carry no ambient credentials → not CSRF-able.
+    if (cookieAuth) {
+      const origin = c.req.header('Origin');
+      if (origin) {
+        try {
+          const requestUrl = new URL(c.req.url);
+          const requestHost = c.req.header('Host') ?? requestUrl.host;
+          const originHost = new URL(origin).host;
+          if (originHost !== requestHost) {
+            return c.json({ error: 'Forbidden' }, 403);
+          }
+        } catch {
+          return c.json({ error: 'Forbidden' }, 403);
+        }
+      }
     }
 
     if (!presented) {

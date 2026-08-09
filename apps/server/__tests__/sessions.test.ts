@@ -200,6 +200,32 @@ describe('POST /admin/auth/refresh — happy rotation (RT-1/RT-2)', () => {
     expect(replay.status).toBe(401);
   });
 
+  it('rejects foreign-Origin cookie refresh (CSRF) but allows foreign-Origin body refresh', async () => {
+    const { cookies, body } = await login();
+
+    // Cookie transport = ambient credential → same-origin required.
+    const foreign = await app.request('/admin/auth/refresh', {
+      method: 'POST',
+      headers: {
+        Cookie: `refresh=${cookies.refresh}`,
+        Origin: 'https://evil.example.com',
+      },
+    }, testEnv);
+    expect(foreign.status).toBe(403);
+    expect(foreign.headers.get('Set-Cookie')).toBeNull();
+
+    // Body transport carries no ambient credentials → not CSRF-able.
+    const bodyRes = await app.request('/admin/auth/refresh', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://evil.example.com',
+      },
+      body: JSON.stringify({ refresh_token: body.refresh_token }),
+    }, testEnv);
+    expect(bodyRes.status).toBe(200);
+  });
+
   it('works when the access JWT is expired or absent (exempt path)', async () => {
     const { cookies } = await login();
     // No session cookie at all — only the refresh cookie.
@@ -224,6 +250,7 @@ describe('POST /admin/auth/refresh — reuse detection (RT-3)', () => {
     // Tab B replays the stale cookie → 401 within grace, NO lineage revoke.
     const loser = await postRefresh(cookies);
     expect(loser.status).toBe(401);
+    expect(loser.headers.get('Set-Cookie')).toBeNull();
 
     const rowAfterLoss = await sessionRowByHash(oldHash);
     expect(rowAfterLoss!.revoked_at).toBeNull();
@@ -247,15 +274,20 @@ describe('POST /admin/auth/refresh — reuse detection (RT-3)', () => {
     const first = await postRefresh(cookies);
     expect(first.status).toBe(200);
 
-    // Replay the consumed hash 59 s after its rotation (the old hash now
-    // lives in prev_hash).
+    // Replay the consumed hash 58 s after its rotation (the old hash now
+    // lives in prev_hash). -58s keeps the replay age <= 59 s even if the
+    // request lands on the next wall-clock second (SQLite 1s resolution):
+    // -59s could tick over to 60s on a loaded CI and flip the boundary.
     await sql`
-      UPDATE auth_sessions SET last_used_at = datetime('now', '-59 seconds')
+      UPDATE auth_sessions SET last_used_at = datetime('now', '-58 seconds')
       WHERE prev_hash = ${oldHash}
     `.execute(db);
 
     const replay = await postRefresh(cookies);
     expect(replay.status).toBe(401);
+    // No rotated cookie must ever be issued on a rejected path (gate W3:
+    // a cookie here would escalate a stolen-hash replay).
+    expect(replay.headers.get('Set-Cookie')).toBeNull();
 
     const row = await sessionRowByHash(oldHash);
     expect(row!.revoked_at).toBeNull();
