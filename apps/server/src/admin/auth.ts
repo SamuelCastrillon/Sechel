@@ -147,6 +147,10 @@ export function clearSessionCookieString(secure: boolean): string {
   return `session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${secure ? '; Secure' : ''}`;
 }
 
+export function clearRefreshCookieString(secure: boolean): string {
+  return `refresh=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${secure ? '; Secure' : ''}`;
+}
+
 export function isSecureRequest(c: Context): boolean {
   const forwarded = c.req.header('x-forwarded-proto');
   if (forwarded) return forwarded.split(',')[0].trim() === 'https';

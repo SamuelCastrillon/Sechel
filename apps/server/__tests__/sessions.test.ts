@@ -8,6 +8,7 @@ import type { Hono } from 'hono';
 import type { Kysely } from 'kysely';
 import type { CortexDB } from '@sechel-mcp/core';
 import type { Env } from '../src/index.js';
+import { createSessionToken, hashPassword } from '../src/admin/auth.js';
 
 // ---------------------------------------------------------------------------
 // Setup: temp SQLite DB, seed admin, shared Kysely instance + app
@@ -18,10 +19,14 @@ const TEST_JWT_SECRET = 'sessions-test-secret-32-chars-min!!';
 const TENANT = 'sess-test';
 const ADMIN_USERNAME = 'sess-admin';
 const ADMIN_PASSWORD = 'sess-password';
+const MEMBER_USERNAME = 'sess-member';
+const MEMBER_PASSWORD = 'sess-member-password';
 
 let db: Kysely<CortexDB>;
 let app: Hono<{ Bindings: Env }>;
 let testEnv: Env;
+
+let MEMBER_TOKEN: string;
 
 type TokenPayload = {
   userId: number;
@@ -41,6 +46,17 @@ beforeAll(async () => {
   await runMigrations(client);
   const { seedAdmin } = await import('../src/admin/seed.js');
   await seedAdmin(client, TENANT, { username: ADMIN_USERNAME, password: ADMIN_PASSWORD });
+  const memberHash = await hashPassword(MEMBER_PASSWORD);
+  await client.execute({
+    sql: `INSERT INTO users (tenant_id, username, role, credential_hash, is_active, created_at)
+          VALUES (?, ?, 'member', ?, 1, datetime('now'))`,
+    args: [TENANT, MEMBER_USERNAME, memberHash],
+  });
+  const memberRow = await client.execute({
+    sql: `SELECT id FROM users WHERE tenant_id = ? AND username = ?`,
+    args: [TENANT, MEMBER_USERNAME],
+  });
+  const memberId = Number(memberRow.rows[0].id);
   client.close();
 
   const { createDb } = await import('@sechel-mcp/core');
@@ -50,6 +66,22 @@ beforeAll(async () => {
 
   const mod = await import('../src/index.js');
   app = mod.createApp({ db, jwtSecret: TEST_JWT_SECRET });
+
+  // DB-backed member session (SR-1) + a foreign-tenant row used by the
+  // tenant-scoping and cross-tenant 404 tests.
+  const memberSid = crypto.randomUUID();
+  await sql`
+    INSERT INTO auth_sessions (id, tenant_id, user_id, device_name, expires_at, refresh_hash, lineage_id)
+    VALUES (${memberSid}, ${TENANT}, ${memberId}, 'test-client', datetime('now', '+30 days'), ${`hash-${memberSid}`}, ${crypto.randomUUID()})
+  `.execute(db);
+  MEMBER_TOKEN = await createSessionToken(
+    { userId: memberId, tenantId: TENANT, role: 'member', sid: memberSid },
+    TEST_JWT_SECRET,
+  );
+  await sql`
+    INSERT INTO auth_sessions (id, tenant_id, user_id, device_name, expires_at, refresh_hash, lineage_id)
+    VALUES ('sess-other-tenant', 'other-tenant', 1, 'foreign', datetime('now', '+30 days'), 'hash-other', 'lin-other')
+  `.execute(db);
 });
 
 afterAll(() => {
@@ -88,6 +120,20 @@ async function login(): Promise<{ cookies: Record<string, string>; body: Record<
   }, testEnv);
   expect(res.status).toBe(200);
   return { cookies: parseSetCookies(res), body: await res.json() as Record<string, unknown> };
+}
+
+function bearerHeaders(token: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+}
+
+/** Fresh admin session: returns the access JWT (bearer) + its sid claim. */
+async function adminAuth(): Promise<{ sid: string; token: string; cookies: Record<string, string> }> {
+  const { cookies } = await login();
+  const payload = await decodeToken(cookies.session);
+  return { sid: payload.sid, token: cookies.session, cookies };
 }
 
 function refreshCookieString(cookies: Record<string, string>): string {
@@ -460,5 +506,135 @@ describe('POST /admin/auth/refresh — fail-closed on DB write error (RT-4)', ()
     expect(rows.rows[0].prev_hash).toBeNull();
     expect(rows.rows[0].revoked_at).toBeNull();
     await db3.destroy();
+  });
+});
+
+describe('GET /admin/auth/sessions — list (UI-1)', () => {
+  it('lists the tenant sessions with computed status and never exposes hashes', async () => {
+    const { token, sid } = await adminAuth();
+
+    // Extra rows for status computation: one expired, one revoked.
+    await sql`
+      INSERT INTO auth_sessions (id, tenant_id, user_id, device_name, user_agent, ip, created_at, last_used_at, expires_at, refresh_hash, lineage_id)
+      VALUES ('sess-expired', ${TENANT}, 1, 'old-laptop', 'curl/8', '10.0.0.1', datetime('now', '-3 days'), datetime('now', '-2 days'), datetime('now', '-1 day'), 'hash-expired', 'lin-expired')
+    `.execute(db);
+    await sql`
+      INSERT INTO auth_sessions (id, tenant_id, user_id, device_name, user_agent, ip, created_at, last_used_at, expires_at, refresh_hash, lineage_id)
+      VALUES ('sess-revoked', ${TENANT}, 1, 'stolen-phone', 'Mozilla/5.0', '10.0.0.2', datetime('now', '-1 day'), datetime('now', '-1 day'), datetime('now', '+30 days'), 'hash-revoked', 'lin-revoked')
+    `.execute(db);
+    await sql`UPDATE auth_sessions SET revoked_at = datetime('now') WHERE id = 'sess-revoked'`.execute(db);
+
+    const res = await app.request('/admin/auth/sessions', { headers: bearerHeaders(token) }, testEnv);
+    expect(res.status).toBe(200);
+
+    const body = await res.json() as { sessions: Array<Record<string, unknown>> };
+    expect(Array.isArray(body.sessions)).toBe(true);
+    const byId = new Map(body.sessions.map((s) => [s.id, s]));
+
+    // The fresh login session is active.
+    const fresh = byId.get(sid);
+    expect(fresh).toBeTruthy();
+    expect(fresh!.status).toBe('active');
+    expect(fresh!.device_name).toBe('web');
+    expect(fresh!.ip).toBe('unknown');
+
+    // Every row exposes the public shape and NOTHING sensitive (AS-1/UI-1).
+    for (const s of body.sessions) {
+      expect(s).not.toHaveProperty('refresh_hash');
+      expect(s).not.toHaveProperty('prev_hash');
+      expect(s).not.toHaveProperty('lineage_id');
+      for (const key of ['id', 'device_name', 'user_agent', 'ip', 'created_at', 'last_used_at', 'expires_at', 'revoked_at', 'status']) {
+        expect(s).toHaveProperty(key);
+      }
+      expect(['active', 'expired', 'revoked']).toContain(s.status);
+    }
+
+    expect(byId.get('sess-expired')!.status).toBe('expired');
+    expect(byId.get('sess-revoked')!.status).toBe('revoked');
+  });
+
+  it('scopes the list to the current tenant', async () => {
+    const { token } = await adminAuth();
+
+    const res = await app.request('/admin/auth/sessions', { headers: bearerHeaders(token) }, testEnv);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { sessions: Array<Record<string, unknown>> };
+    const ids = body.sessions.map((s) => s.id);
+    expect(ids).not.toContain('sess-other-tenant');
+  });
+
+  it('requires admin (member → 403)', async () => {
+    const res = await app.request('/admin/auth/sessions', { headers: bearerHeaders(MEMBER_TOKEN) }, testEnv);
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('DELETE /admin/auth/sessions/:id — device revoke (UI-2, SR-2)', () => {
+  it('revokes the target session: 204, that device dies, others keep working', async () => {
+    const actor = await adminAuth();
+    const deviceA = await adminAuth();
+    const deviceB = await adminAuth();
+
+    const del = await app.request(`/admin/auth/sessions/${deviceA.sid}`, {
+      method: 'DELETE',
+      headers: bearerHeaders(actor.token),
+    }, testEnv);
+    expect(del.status).toBe(204);
+
+    // Device A: access JWT rejected on next request, refresh token dead.
+    const afterA = await app.request('/admin/users', { headers: bearerHeaders(deviceA.token) }, testEnv);
+    expect(afterA.status).toBe(401);
+    const refreshA = await app.request('/admin/auth/refresh', {
+      method: 'POST',
+      headers: { Cookie: `refresh=${deviceA.cookies.refresh}` },
+    }, testEnv);
+    expect(refreshA.status).toBe(401);
+
+    // Device B: unaffected (isolation).
+    const afterB = await app.request('/admin/users', { headers: bearerHeaders(deviceB.token) }, testEnv);
+    expect(afterB.status).toBe(200);
+
+    // Soft delete: revoked_at set, row kept for lineage audit (AS-2).
+    const row = await sql<{ revoked_at: string | null }>`
+      SELECT revoked_at FROM auth_sessions WHERE id = ${deviceA.sid}
+    `.execute(db);
+    expect(row.rows[0].revoked_at).not.toBeNull();
+  });
+
+  it('can revoke the current session too (that device just logs out)', async () => {
+    const me = await adminAuth();
+    const del = await app.request(`/admin/auth/sessions/${me.sid}`, {
+      method: 'DELETE',
+      headers: bearerHeaders(me.token),
+    }, testEnv);
+    expect(del.status).toBe(204);
+    const after = await app.request('/admin/users', { headers: bearerHeaders(me.token) }, testEnv);
+    expect(after.status).toBe(401);
+  });
+
+  it('returns 404 for an unknown session id', async () => {
+    const actor = await adminAuth();
+    const res = await app.request('/admin/auth/sessions/does-not-exist', {
+      method: 'DELETE',
+      headers: bearerHeaders(actor.token),
+    }, testEnv);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for a session id that belongs to another tenant', async () => {
+    const actor = await adminAuth();
+    const res = await app.request('/admin/auth/sessions/sess-other-tenant', {
+      method: 'DELETE',
+      headers: bearerHeaders(actor.token),
+    }, testEnv);
+    expect(res.status).toBe(404);
+  });
+
+  it('requires admin (member → 403)', async () => {
+    const res = await app.request('/admin/auth/sessions/some-id', {
+      method: 'DELETE',
+      headers: bearerHeaders(MEMBER_TOKEN),
+    }, testEnv);
+    expect(res.status).toBe(403);
   });
 });

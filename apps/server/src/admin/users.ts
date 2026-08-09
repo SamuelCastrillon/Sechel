@@ -131,6 +131,13 @@ export function registerUserRoutes(router: Hono): void {
       UPDATE users SET role = ${role} WHERE id = ${id} AND tenant_id = ${tenantId}
     `.execute(db);
 
+    // SR-2: role change revokes ALL sessions of the target user so the new
+    // role applies immediately (the middleware reads role from the DB).
+    await sql`
+      UPDATE auth_sessions SET revoked_at = datetime('now')
+      WHERE user_id = ${id} AND tenant_id = ${tenantId} AND revoked_at IS NULL
+    `.execute(db);
+
     const updated = await sql<{
       id: number; username: string; role: string; is_active: number;
     }>`
@@ -158,6 +165,16 @@ export function registerUserRoutes(router: Hono): void {
     if (affected === 0) {
       return c.json({ error: 'User not found' }, 404);
     }
+
+    // SR-2: deactivation revokes ALL sessions of the target user. The
+    // middleware join already rejects deactivated users (is_active = 1);
+    // the revoke additionally kills their refresh tokens so they cannot
+    // re-authenticate. (Re-activation also revokes leftover rows — harmless,
+    // the user just logs in again.)
+    await sql`
+      UPDATE auth_sessions SET revoked_at = datetime('now')
+      WHERE user_id = ${id} AND tenant_id = ${tenantId} AND revoked_at IS NULL
+    `.execute(db);
 
     const updated = await sql<{
       id: number; username: string; role: string; is_active: number;
