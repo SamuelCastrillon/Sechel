@@ -7,7 +7,8 @@ import type { Hono } from 'hono';
 import type { Kysely } from 'kysely';
 import type { CortexDB } from '@sechel-mcp/core';
 import type { Env } from '../src/index.js';
-import { createSessionToken } from '../src/admin/auth.js';
+import { createSessionToken, verifyPassword } from '../src/admin/auth.js';
+import { seedAdminFromDb } from '../src/admin/seed.js';
 
 // ---------------------------------------------------------------------------
 // Setup: temp SQLite DB, seed admin, create shared Kysely instance
@@ -559,6 +560,45 @@ describe('Admin API — Registration', () => {
     const off = await app.request('/admin/public/registration-enabled', {}, testEnv);
     expect(off.status).toBe(200);
     expect((await off.json())).toEqual({ enabled: false });
+  });
+});
+
+describe('Admin API — seedAdminFromDb (embedded create-only seeding)', () => {
+  it('creates the first admin when missing', async () => {
+    const first = await seedAdminFromDb(db, 'seedtest', {
+      username: 'seed-admin',
+      password: 'first-password',
+    });
+    expect(first?.username).toBe('seed-admin');
+    expect(first?.role).toBe('admin');
+    expect(first?.is_active).toBe(1);
+  });
+
+  it('never overwrites an existing credential_hash (create-only)', async () => {
+    // "Cold start" with a different ADMIN_PASSWORD must not re-hash.
+    await seedAdminFromDb(db, 'seedtest', {
+      username: 'seed-admin',
+      password: 'second-password',
+    });
+    const row = await sql<{ credential_hash: string }>`
+      SELECT credential_hash FROM users
+      WHERE tenant_id = 'seedtest' AND username = 'seed-admin'
+    `.execute(db);
+    expect(await verifyPassword('first-password', row.rows[0].credential_hash)).toBe(true);
+    expect(await verifyPassword('second-password', row.rows[0].credential_hash)).toBe(false);
+  });
+
+  it('ensures the registration_enabled setting exists', async () => {
+    await seedAdminFromDb(db, 'seedtest-other', { username: 'other-admin', password: 'other-pass' });
+    const reg = await sql<{ value: string }>`
+      SELECT value FROM instance_settings WHERE key = 'registration_enabled'
+    `.execute(db);
+    expect(reg.rows.length).toBe(1);
+  });
+
+  it('no-ops when credentials are missing', async () => {
+    const result = await seedAdminFromDb(db, 'seedtest-nocreds');
+    expect(result).toBeUndefined();
   });
 });
 
