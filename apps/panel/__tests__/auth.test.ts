@@ -106,4 +106,22 @@ describe('session — cookie helpers', () => {
     const val = parseSessionCookie(null);
     expect(val).toBeNull();
   });
+
+  it('parseRefreshCookie extracts the refresh= value from a header', async () => {
+    const { parseRefreshCookie } = await import('@/lib/session');
+    const val = parseRefreshCookie('session=abc; refresh=xyz789; other=def');
+    expect(val).toBe('xyz789');
+  });
+
+  it('parseRefreshCookie returns null when refresh= is absent', async () => {
+    const { parseRefreshCookie } = await import('@/lib/session');
+    expect(parseRefreshCookie('session=abc')).toBeNull();
+    expect(parseRefreshCookie(null)).toBeNull();
+  });
+
+  it('cookie max-ages match the embedded server TTLs (access 15m, refresh 30d)', async () => {
+    const { SESSION_MAX_AGE, REFRESH_MAX_AGE } = await import('@/lib/session');
+    expect(SESSION_MAX_AGE).toBe(900);
+    expect(REFRESH_MAX_AGE).toBe(2592000);
+  });
 });

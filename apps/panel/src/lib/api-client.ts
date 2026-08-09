@@ -1,18 +1,78 @@
 import type { ActionResult, User, ApiToken, InstanceSettings } from './types';
 
 const API_BASE = '/api/admin';
+const LOGIN_PATH = '/admin/login';
+
+/**
+ * Single-flight session refresh (design decision 7): N parallel 401s share one
+ * in-flight POST /auth/refresh so the rotation endpoint is hit once, not N
+ * times. The promise is replaced on settle, so a later 401 starts a fresh
+ * single-flight refresh.
+ *
+ * The refresh call is a raw fetch — it never runs through the 401 interceptor,
+ * so a refresh 401 can never recurse into another refresh (PR-1 gate: refresh
+ * excluded by construction; refresh failure → login redirect).
+ */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function performRefresh(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function refreshSession(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = performRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+function redirectToLogin(): void {
+  if (typeof window !== 'undefined') {
+    window.location.href = LOGIN_PATH;
+  }
+}
 
 async function request<T>(
   path: string,
   options: RequestInit = {},
+  retryOn401 = true,
 ): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  });
+  const doFetch = () =>
+    fetch(`${API_BASE}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    });
+
+  let res = await doFetch();
+
+  if (res.status === 401 && retryOn401) {
+    // PR-1: 401 → one shared refresh → retry the original request ONCE.
+    const refreshed = await refreshSession();
+    if (!refreshed) {
+      // Refresh expired/revoked (or unreachable) — the session is dead.
+      redirectToLogin();
+      throw new Error('Session expired');
+    }
+    res = await doFetch();
+    if (res.status === 401) {
+      // Retry still rejected — the session died between refresh and retry.
+      redirectToLogin();
+      throw new Error('Session expired');
+    }
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
@@ -25,10 +85,15 @@ async function request<T>(
 // ── Auth ──
 
 export async function login(username: string, password: string): Promise<{ user: User }> {
-  return request('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ username, password }),
-  });
+  // A 401 here means bad credentials, not an expired session — never refresh.
+  return request(
+    '/auth/login',
+    {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    },
+    false,
+  );
 }
 
 export async function logout(): Promise<void> {
