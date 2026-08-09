@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MemoryChipIcon } from './MemoryChipIcon';
+import { logout } from '@/lib/api-client';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard' },
@@ -11,6 +12,15 @@ const navItems = [
 
 export function Sidebar({ currentPath }: { currentPath: string }) {
   const [collapsed, setCollapsed] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // Session may already be invalid — redirect to login regardless.
+    }
+    window.location.href = '/admin/login';
+  };
 
   return (
     <aside
@@ -43,6 +53,13 @@ export function Sidebar({ currentPath }: { currentPath: string }) {
           );
         })}
       </nav>
+
+      <button
+        onClick={handleLogout}
+        className="border-t border-outline-variant p-4 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 text-left"
+      >
+        {collapsed ? '↪' : 'Logout'}
+      </button>
 
       <button
         onClick={() => setCollapsed(!collapsed)}

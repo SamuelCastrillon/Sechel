@@ -31,6 +31,10 @@ export async function login(username: string, password: string): Promise<{ user:
   });
 }
 
+export async function logout(): Promise<void> {
+  await request('/auth/logout', { method: 'POST' });
+}
+
 // ── Users ──
 
 export async function listUsers(): Promise<User[]> {
