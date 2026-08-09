@@ -3,6 +3,17 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+const ok = (data: unknown) => ({
+  ok: true,
+  status: 200,
+  json: () => Promise.resolve(data),
+});
+const unauthorized = {
+  ok: false,
+  status: 401,
+  json: () => Promise.resolve({ error: 'Unauthorized' }),
+};
+
 beforeEach(() => {
   mockFetch.mockReset();
 });
@@ -125,17 +136,6 @@ describe('api-client — tokens', () => {
 });
 
 describe('api-client — 401 refresh flow (PR-1/PR-3)', () => {
-  const ok = (data: unknown) => ({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve(data),
-  });
-  const unauthorized = {
-    ok: false,
-    status: 401,
-    json: () => Promise.resolve({ error: 'Unauthorized' }),
-  };
-
   it('parallel 401s trigger exactly ONE refresh, then each original request retries successfully', async () => {
     mockFetch
       .mockResolvedValueOnce(unauthorized)
@@ -262,6 +262,94 @@ describe('api-client — 401 refresh flow (PR-1/PR-3)', () => {
       mockFetch.mock.calls.filter(([url]) => url === '/api/admin/auth/refresh'),
     ).toHaveLength(0);
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('api-client — sessions (UI-1/UI-2)', () => {
+  const session = {
+    id: 'sess-1',
+    device_name: 'web',
+    user_agent: 'Mozilla/5.0',
+    ip: '127.0.0.1',
+    created_at: '2026-08-09 10:00:00',
+    last_used_at: '2026-08-09 10:00:00',
+    expires_at: '2026-09-08 10:00:00',
+    revoked_at: null,
+    status: 'active',
+  };
+
+  it('listSessions calls GET /api/admin/auth/sessions and unwraps the sessions array', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ sessions: [session] }),
+    });
+
+    const { listSessions } = await import('@/lib/api-client');
+    const sessions = await listSessions();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/admin/auth/sessions',
+      expect.any(Object),
+    );
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({
+      id: 'sess-1',
+      device_name: 'web',
+      user_agent: 'Mozilla/5.0',
+      ip: '127.0.0.1',
+      last_used_at: '2026-08-09 10:00:00',
+      status: 'active',
+    });
+    expect(sessions[0]).not.toHaveProperty('refresh_hash');
+  });
+
+  it('revokeSession calls DELETE /api/admin/auth/sessions/:id and tolerates a 204 no-body response', async () => {
+    const json = vi.fn(() => Promise.resolve({}));
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 204, json });
+
+    const { revokeSession } = await import('@/lib/api-client');
+    await expect(revokeSession('sess-1')).resolves.toBeUndefined();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/admin/auth/sessions/sess-1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    // A 204 has no JSON body — the client must not try to parse it.
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it('listSessions 401 → single-flight refresh → retried once with the original path', async () => {
+    mockFetch
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValueOnce(ok({ token: 'fresh-access' }))
+      .mockResolvedValueOnce(ok({ sessions: [session] }));
+
+    const { listSessions } = await import('@/lib/api-client');
+    const sessions = await listSessions();
+
+    expect(mockFetch.mock.calls.map(([url]) => url)).toEqual([
+      '/api/admin/auth/sessions',
+      '/api/admin/auth/refresh',
+      '/api/admin/auth/sessions',
+    ]);
+    expect(sessions).toHaveLength(1);
+  });
+
+  it('revokeSession 401 → refresh → retried DELETE, 204 still tolerated', async () => {
+    mockFetch
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValueOnce(ok({ token: 'fresh-access' }))
+      .mockResolvedValueOnce({ ok: true, status: 204, json: vi.fn(() => Promise.resolve({})) });
+
+    const { revokeSession } = await import('@/lib/api-client');
+    await expect(revokeSession('sess-2')).resolves.toBeUndefined();
+
+    const calls = mockFetch.mock.calls;
+    expect(calls).toHaveLength(3);
+    expect(calls[0]).toEqual(['/api/admin/auth/sessions/sess-2', expect.any(Object)]);
+    expect(calls[1][0]).toBe('/api/admin/auth/refresh');
+    expect(calls[2][0]).toBe('/api/admin/auth/sessions/sess-2');
+    expect(calls[2][1]).toMatchObject({ method: 'DELETE' });
   });
 });
 

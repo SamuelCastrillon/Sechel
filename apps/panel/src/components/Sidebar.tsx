@@ -7,6 +7,7 @@ const navItems = [
   { href: '/admin/memories', label: 'Memories' },
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/settings', label: 'Settings' },
+  { href: '/admin/sessions', label: 'Sessions' },
   { href: '/admin/api-tokens', label: 'API Tokens' },
 ];
 

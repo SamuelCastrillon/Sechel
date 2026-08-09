@@ -1,0 +1,34 @@
+---
+import AdminLayout from '@/layouts/AdminLayout.astro';
+import { SessionsList } from '@/components/sessions/SessionsList';
+import { loadAdminSessions } from '@/lib/admin-sessions';
+
+// Server-rendered list (design decision 9): the sessions are fetched through
+// the embedded server using the access token the middleware verified or
+// refreshed for this navigation (locals.sessionToken — the browser cookie can
+// be one rotation behind after a middleware refresh). The embedded server's
+// DB join rejects revoked rows, so a stale-but-crypto-valid cookie (U4 gate
+// item (a)) lands here as null → graceful bounce to login, no crash.
+const data = await loadAdminSessions(
+  Astro.request.headers.get('cookie'),
+  Astro.locals as unknown as Record<string, unknown>,
+);
+
+if (!data) {
+  return Astro.redirect('/admin/login');
+}
+
+const { sessions, currentSessionId } = data;
+---
+
+<AdminLayout title="Sessions" currentPath="/admin/sessions">
+  <div class="space-y-6">
+    <div>
+      <h1 class="text-2xl font-black tracking-tighter uppercase text-on-surface">Sessions</h1>
+      <p class="text-xs font-mono text-outline uppercase tracking-widest mt-1">
+        Active Devices &amp; Revocation
+      </p>
+    </div>
+    <SessionsList client:load initialSessions={sessions} currentSessionId={currentSessionId} />
+  </div>
+</AdminLayout>
