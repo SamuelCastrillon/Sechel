@@ -29,6 +29,7 @@ let testEnv: Env;
 let ADMIN_TOKEN: string;
 let MEMBER_TOKEN: string;
 let ADMIN_COOKIE: string;
+let REFRESH_COOKIE: string;
 
 beforeAll(async () => {
   process.env.JWT_SECRET = TEST_JWT_SECRET;
@@ -59,30 +60,46 @@ beforeAll(async () => {
 
   testEnv = { DATABASE_URL: `file:${TEST_DB_PATH}`, TENANT_ID: TENANT };
 
-  // Step 3: app + tokens
+  // Step 3: app + tokens. Access JWTs carry a sid claim and the middleware
+  // re-validates the session row per request (SR-1), so DB-backed rows are
+  // created for both users.
   const mod = await import('../src/index.js');
   app = mod.createApp({ db, jwtSecret: TEST_JWT_SECRET });
 
+  const adminSid = crypto.randomUUID();
+  const memberSid = crypto.randomUUID();
+  await sql`
+    INSERT INTO auth_sessions (id, tenant_id, user_id, device_name, expires_at, refresh_hash, lineage_id)
+    VALUES (${adminSid}, ${TENANT}, 1, 'test-client', datetime('now', '+30 days'), ${`hash-${adminSid}`}, ${crypto.randomUUID()}),
+           (${memberSid}, ${TENANT}, ${memberId}, 'test-client', datetime('now', '+30 days'), ${`hash-${memberSid}`}, ${crypto.randomUUID()})
+  `.execute(db);
+
   ADMIN_TOKEN = await createSessionToken(
-    { userId: 1, tenantId: TENANT, role: 'admin' },
+    { userId: 1, tenantId: TENANT, role: 'admin', sid: adminSid },
     TEST_JWT_SECRET,
   );
   MEMBER_TOKEN = await createSessionToken(
-    { userId: memberId, tenantId: TENANT, role: 'member' },
+    { userId: memberId, tenantId: TENANT, role: 'member', sid: memberSid },
     TEST_JWT_SECRET,
   );
 
-  // Step 4: real login to capture the HttpOnly session cookie
+  // Step 4: real login to capture the HttpOnly cookies (session + refresh)
   const loginRes = await app.request('/admin/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: ADMIN_USERNAME, password: ADMIN_PASSWORD }),
   }, testEnv);
   expect(loginRes.status).toBe(200);
-  ADMIN_COOKIE = loginRes.headers.get('Set-Cookie') ?? '';
+  const loginCookies = loginRes.headers.getSetCookie();
+  expect(loginCookies.length).toBe(2);
+  ADMIN_COOKIE = loginCookies[0] ?? '';
+  REFRESH_COOKIE = loginCookies[1] ?? '';
   expect(ADMIN_COOKIE).toContain('session=');
   expect(ADMIN_COOKIE).toContain('HttpOnly');
-  expect(ADMIN_COOKIE).toContain('Max-Age=86400');
+  expect(ADMIN_COOKIE).toContain('Max-Age=900');
+  expect(REFRESH_COOKIE).toContain('refresh=');
+  expect(REFRESH_COOKIE).toContain('HttpOnly');
+  expect(REFRESH_COOKIE).toContain('Max-Age=2592000');
 });
 
 afterAll(() => {
@@ -175,6 +192,65 @@ describe('Admin API — cookie-based auth', () => {
       headers: { Cookie: 'session=not-a-jwt' },
     });
     expect(res.status).toBe(401);
+  });
+});
+
+describe('Admin API — per-request DB session check (SR-1)', () => {
+  async function insertSessionRow(sid: string, userId: number): Promise<void> {
+    await sql`
+      INSERT INTO auth_sessions (id, tenant_id, user_id, device_name, expires_at, refresh_hash, lineage_id)
+      VALUES (${sid}, ${TENANT}, ${userId}, 'test-client', datetime('now', '+30 days'), ${`hash-${sid}`}, ${crypto.randomUUID()})
+    `.execute(db);
+  }
+
+  it('rejects a validly-signed token whose session row is missing (401)', async () => {
+    const ghost = await createSessionToken(
+      { userId: 1, tenantId: TENANT, role: 'admin', sid: crypto.randomUUID() },
+      TEST_JWT_SECRET,
+    );
+    const res = await app.request('/admin/users', { headers: bearerHeaders(ghost) });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a validly-signed token whose session row is revoked (401)', async () => {
+    const sid = crypto.randomUUID();
+    await insertSessionRow(sid, 1);
+    await sql`UPDATE auth_sessions SET revoked_at = datetime('now') WHERE id = ${sid}`.execute(db);
+
+    const token = await createSessionToken(
+      { userId: 1, tenantId: TENANT, role: 'admin', sid },
+      TEST_JWT_SECRET,
+    );
+    const res = await app.request('/admin/users', { headers: bearerHeaders(token) });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a validly-signed token for a deactivated user (401)', async () => {
+    const sid = crypto.randomUUID();
+    await insertSessionRow(sid, 1);
+    const token = await createSessionToken(
+      { userId: 1, tenantId: TENANT, role: 'admin', sid },
+      TEST_JWT_SECRET,
+    );
+
+    await sql`UPDATE users SET is_active = 0 WHERE id = 1`.execute(db);
+    try {
+      const res = await app.request('/admin/users', { headers: bearerHeaders(token) });
+      expect(res.status).toBe(401);
+    } finally {
+      await sql`UPDATE users SET is_active = 1 WHERE id = 1`.execute(db);
+    }
+  });
+
+  it('applies role demotion immediately — role comes from the DB, not the JWT (403)', async () => {
+    // The token claims 'admin', but the DB row says 'member' → 403.
+    await sql`UPDATE users SET role = 'member' WHERE id = 1`.execute(db);
+    try {
+      const res = await app.request('/admin/users', { headers: bearerHeaders(ADMIN_TOKEN) });
+      expect(res.status).toBe(403);
+    } finally {
+      await sql`UPDATE users SET role = 'admin' WHERE id = 1`.execute(db);
+    }
   });
 });
 

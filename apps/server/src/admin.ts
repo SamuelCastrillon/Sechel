@@ -1,40 +1,27 @@
 import { Hono } from 'hono';
-import type { Context } from 'hono';
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { CortexDB } from '@sechel-mcp/core';
 import type { Env } from './index.js';
 import { seedAdmin } from './admin/seed.js';
-import { createSessionToken, hashPassword, verifyPassword } from './admin/auth.js';
+import {
+  createSessionToken,
+  generateRefreshToken,
+  hashPassword,
+  verifyPassword,
+  sessionCookieString,
+  refreshCookieString,
+  clearSessionCookieString,
+  isSecureRequest,
+} from './admin/auth.js';
 import { authMiddleware, getDb, getUser } from './admin/auth-middleware.js';
 import { MIN_PASSWORD_LENGTH, registerRegisterRoutes } from './admin/register.js';
 import { registerUserRoutes } from './admin/users.js';
 import { registerSettingsRoutes } from './admin/settings.js';
 import { registerTokenRoutes } from './admin/tokens.js';
+import { registerSessionRoutes } from './admin/sessions.js';
 import { createRateLimiter, clientIp } from './admin/rate-limit.js';
 import { createDb } from '@sechel-mcp/core';
-
-/**
- * Session cookie for browser logins. `Secure` is applied on HTTPS requests
- * so production cookies are never sent over plain HTTP, while local dev
- * (plain http://localhost) keeps working. The cookie is same-site and
- * HttpOnly; the `__Host-` prefix is intentionally not used because the
- * cookie name is shared with the panel middleware which must keep
- * parseSessionCookie stable.
- */
-function sessionCookieString(token: string, secure: boolean): string {
-  return `session=${token}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax${secure ? '; Secure' : ''}`;
-}
-
-function clearSessionCookieString(secure: boolean): string {
-  return `session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${secure ? '; Secure' : ''}`;
-}
-
-function isSecureRequest(c: Context): boolean {
-  const forwarded = c.req.header('x-forwarded-proto');
-  if (forwarded) return forwarded.split(',')[0].trim() === 'https';
-  return new URL(c.req.url).protocol === 'https:';
-}
 
 /**
  * Options for registerAdminRoutes.
@@ -144,14 +131,9 @@ export function registerAdminRoutes(
   // Variables accessed via typed helpers (getUser/getDb) that cast internally.
   const adminRouter = new Hono();
 
-  // Apply auth middleware to all admin routes (exempt paths handled internally)
-  adminRouter.use('/*', authMiddleware(opts?.jwtSecret, prefix));
-
-  // Login is public, so brute force must be throttled per IP + username.
-  const loginLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
-
-  // If shared db provided, set it in context for all handlers.
-  // Otherwise, create a per-request connection from env vars.
+  // Resolve the DB FIRST, so getDb(c) is available inside authMiddleware —
+  // the per-request session check needs it (SR-1). Per-request connections
+  // are destroyed in a finally that still wraps the whole handler chain.
   if (opts?.db) {
     adminRouter.use('/*', async (c, next) => {
       (c as any).set('db', opts.db!);
@@ -170,6 +152,12 @@ export function registerAdminRoutes(
       }
     });
   }
+
+  // Apply auth middleware to all admin routes (exempt paths handled internally)
+  adminRouter.use('/*', authMiddleware(opts?.jwtSecret, prefix));
+
+  // Login is public, so brute force must be throttled per IP + username.
+  const loginLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
 
   // ---- Health check (always public) ----
   adminRouter.get('/health', async (c) => {
@@ -204,47 +192,60 @@ export function registerAdminRoutes(
       // Env bindings are passed through from parent app at runtime
       const env = c.env as Partial<Env>;
       const tenantId = env?.TENANT_ID ?? process.env.TENANT_ID ?? 'default';
-      const db = await getDbForRequest(env, opts?.db);
+      // The db-setter middleware runs before this handler, so the DB is
+      // already in context (and its lifecycle is managed by the middleware).
+      const db = getDb(c);
 
-      try {
-        const user = await sql<{
-          id: number; username: string; role: string; credential_hash: string; is_active: number
-        }>`
-          SELECT id, username, role, credential_hash, is_active
-          FROM users
-          WHERE tenant_id = ${tenantId} AND username = ${username}
-          LIMIT 1
-        `.execute(db);
+      const user = await sql<{
+        id: number; username: string; role: string; credential_hash: string; is_active: number
+      }>`
+        SELECT id, username, role, credential_hash, is_active
+        FROM users
+        WHERE tenant_id = ${tenantId} AND username = ${username}
+        LIMIT 1
+      `.execute(db);
 
-        if (user.rows.length === 0) {
-          return c.json({ error: 'Invalid credentials' }, 401);
-        }
-
-        const row = user.rows[0];
-        const valid = await verifyPassword(password, row.credential_hash);
-
-        if (!valid || !row.is_active) {
-          return c.json({ error: 'Invalid credentials' }, 401);
-        }
-
-        loginLimiter.reset(limiterKey);
-
-        const sessionToken = await createSessionToken(
-          { userId: row.id, tenantId, role: row.role },
-          opts?.jwtSecret,
-        );
-
-        // Set HttpOnly session cookie for standalone mode. Secure only on
-        // HTTPS requests so local plain-HTTP dev keeps working.
-        c.header('Set-Cookie', sessionCookieString(sessionToken, isSecureRequest(c)));
-
-        return c.json({
-          token: sessionToken,
-          user: { id: row.id, username: row.username, role: row.role },
-        });
-      } finally {
-        if (!opts?.db) await db.destroy();
+      if (user.rows.length === 0) {
+        return c.json({ error: 'Invalid credentials' }, 401);
       }
+
+      const row = user.rows[0];
+      const valid = await verifyPassword(password, row.credential_hash);
+
+      if (!valid || !row.is_active) {
+        return c.json({ error: 'Invalid credentials' }, 401);
+      }
+
+      loginLimiter.reset(limiterKey);
+
+      // Create one session row per device (AS-2): the row id becomes the
+      // access JWT `sid` claim. Only the SHA-256 of the opaque refresh token
+      // is stored — never the plaintext. expires_at = now + 30 days (RT-2).
+      const sid = crypto.randomUUID();
+      const lineageId = crypto.randomUUID();
+      const { raw: rawRefresh, hash: refreshHash } = await generateRefreshToken();
+
+      await sql`
+        INSERT INTO auth_sessions (id, tenant_id, user_id, device_name, user_agent, ip, expires_at, refresh_hash, lineage_id)
+        VALUES (${sid}, ${tenantId}, ${row.id}, 'web', ${c.req.header('User-Agent') ?? null}, ${clientIp(c)}, datetime('now', '+30 days'), ${refreshHash}, ${lineageId})
+      `.execute(db);
+
+      const sessionToken = await createSessionToken(
+        { userId: row.id, tenantId, role: row.role, sid },
+        opts?.jwtSecret,
+      );
+
+      // Set HttpOnly session + refresh cookies. Secure only on HTTPS
+      // requests so local plain-HTTP dev keeps working.
+      const secure = isSecureRequest(c);
+      c.header('Set-Cookie', sessionCookieString(sessionToken, secure));
+      c.header('Set-Cookie', refreshCookieString(rawRefresh, secure), { append: true });
+
+      return c.json({
+        token: sessionToken,
+        refresh_token: rawRefresh,
+        user: { id: row.id, username: row.username, role: row.role },
+      });
     } catch (err) {
       // Log details server-side, never leak internals to the client.
       console.error('[admin/auth] login failed:', err);
@@ -313,6 +314,9 @@ export function registerAdminRoutes(
 
   // ---- Auth register + public settings (public, exempt from JWT) ----
   registerRegisterRoutes(adminRouter);
+
+  // ---- Session refresh (exempt from JWT, authenticated via refresh cookie) ----
+  registerSessionRoutes(adminRouter, opts?.jwtSecret);
 
   // ---- CRUD sub-routers ----
   registerUserRoutes(adminRouter);

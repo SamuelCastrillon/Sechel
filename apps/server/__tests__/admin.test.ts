@@ -41,9 +41,16 @@ beforeAll(async () => {
   const { createDb } = await import('@sechel-mcp/core');
   db = await createDb({ url: `file:${TEST_DB_PATH}` });
 
-  // Step 3: Create an admin session token for protected route tests
+  // Step 3: Create a DB-backed admin session token for protected route tests.
+  // The access JWT carries a sid claim and the middleware re-validates the
+  // session row on every request (SR-1), so a row must exist.
+  const adminSid = crypto.randomUUID();
+  await sql`
+    INSERT INTO auth_sessions (id, tenant_id, user_id, device_name, expires_at, refresh_hash, lineage_id)
+    VALUES (${adminSid}, 'test', 1, 'test-client', datetime('now', '+30 days'), ${`hash-${adminSid}`}, ${crypto.randomUUID()})
+  `.execute(db);
   ADMIN_TOKEN = await createSessionToken(
-    { userId: 1, tenantId: 'test', role: 'admin' },
+    { userId: 1, tenantId: 'test', role: 'admin', sid: adminSid },
     TEST_JWT_SECRET,
   );
 
@@ -123,15 +130,26 @@ describe('Admin API — Login', () => {
     const body = await res.json() as Record<string, unknown>;
     expect(typeof body.token).toBe('string');
     expect(body.token).toBeTruthy();
+    expect(typeof body.refresh_token).toBe('string'); // NC-1: cookie-less clients
     expect(body.user).toEqual({ id: 1, username: ADMIN_USERNAME, role: 'admin' });
 
-    // Check Set-Cookie
-    const setCookie = res.headers.get('Set-Cookie');
-    expect(setCookie).toBeTruthy();
-    expect(setCookie).toContain('session=');
-    expect(setCookie).toContain('HttpOnly');
-    expect(setCookie).toContain('Path=/');
-    expect(setCookie).toContain('Max-Age=86400');
+    // Two cookies: 15-min session + 30-day refresh (RT-1/RT-2, NC-1).
+    const setCookies = res.headers.getSetCookie();
+    expect(setCookies.length).toBe(2);
+
+    const sessionCookie = setCookies[0];
+    expect(sessionCookie).toContain('session=');
+    expect(sessionCookie).toContain('HttpOnly');
+    expect(sessionCookie).toContain('Path=/');
+    expect(sessionCookie).toContain('Max-Age=900');
+    expect(sessionCookie).toContain('SameSite=Lax');
+
+    const refreshCookie = setCookies[1];
+    expect(refreshCookie).toContain('refresh=');
+    expect(refreshCookie).toContain('HttpOnly');
+    expect(refreshCookie).toContain('Path=/');
+    expect(refreshCookie).toContain('Max-Age=2592000');
+    expect(refreshCookie).toContain('SameSite=Lax');
   });
 
   it('POST /admin/auth/login returns 401 for inactive account (no existence leak)', async () => {
