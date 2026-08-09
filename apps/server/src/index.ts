@@ -8,6 +8,9 @@ import type { CortexDB } from '@sechel-mcp/core';
 import { createDb, verifyToken } from '@sechel-mcp/core';
 import { registerAdminRoutes } from './admin.js';
 import type { AdminRoutesOptions } from './admin.js';
+import { seedAdminFromDb } from './admin/seed.js';
+
+export { seedAdminFromDb };
 
 // ---------------------------------------------------------------------------
 // Env — typed bindings for both CF Workers and Node.js

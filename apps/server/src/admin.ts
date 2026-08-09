@@ -1,15 +1,40 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { CortexDB } from '@sechel-mcp/core';
 import type { Env } from './index.js';
 import { seedAdmin } from './admin/seed.js';
-import { createSessionToken, verifyPassword } from './admin/auth.js';
-import { authMiddleware } from './admin/auth-middleware.js';
-import { registerRegisterRoutes } from './admin/register.js';
+import { createSessionToken, hashPassword, verifyPassword } from './admin/auth.js';
+import { authMiddleware, getDb, getUser } from './admin/auth-middleware.js';
+import { MIN_PASSWORD_LENGTH, registerRegisterRoutes } from './admin/register.js';
 import { registerUserRoutes } from './admin/users.js';
 import { registerSettingsRoutes } from './admin/settings.js';
 import { registerTokenRoutes } from './admin/tokens.js';
+import { createRateLimiter, clientIp } from './admin/rate-limit.js';
 import { createDb } from '@sechel-mcp/core';
+
+/**
+ * Session cookie for browser logins. `Secure` is applied on HTTPS requests
+ * so production cookies are never sent over plain HTTP, while local dev
+ * (plain http://localhost) keeps working. The cookie is same-site and
+ * HttpOnly; the `__Host-` prefix is intentionally not used because the
+ * cookie name is shared with the panel middleware which must keep
+ * parseSessionCookie stable.
+ */
+function sessionCookieString(token: string, secure: boolean): string {
+  return `session=${token}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax${secure ? '; Secure' : ''}`;
+}
+
+function clearSessionCookieString(secure: boolean): string {
+  return `session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${secure ? '; Secure' : ''}`;
+}
+
+function isSecureRequest(c: Context): boolean {
+  const forwarded = c.req.header('x-forwarded-proto');
+  if (forwarded) return forwarded.split(',')[0].trim() === 'https';
+  return new URL(c.req.url).protocol === 'https:';
+}
 
 /**
  * Options for registerAdminRoutes.
@@ -120,7 +145,10 @@ export function registerAdminRoutes(
   const adminRouter = new Hono();
 
   // Apply auth middleware to all admin routes (exempt paths handled internally)
-  adminRouter.use('/*', authMiddleware(opts?.jwtSecret));
+  adminRouter.use('/*', authMiddleware(opts?.jwtSecret, prefix));
+
+  // Login is public, so brute force must be throttled per IP + username.
+  const loginLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
 
   // If shared db provided, set it in context for all handlers.
   // Otherwise, create a per-request connection from env vars.
@@ -166,13 +194,19 @@ export function registerAdminRoutes(
         return c.json({ error: 'username and password are required' }, 400);
       }
 
+      // Only enforce the limit once credentials are present — empty-body
+      // probes cost nothing (no argon2), so they are not throttled.
+      const limiterKey = `${clientIp(c)}:${username}`;
+      if (!loginLimiter.allow(limiterKey)) {
+        return c.json({ error: 'Too many login attempts. Try again later.' }, 429);
+      }
+
       // Env bindings are passed through from parent app at runtime
       const env = c.env as Partial<Env>;
       const tenantId = env?.TENANT_ID ?? process.env.TENANT_ID ?? 'default';
       const db = await getDbForRequest(env, opts?.db);
 
       try {
-        const { sql } = await import('kysely');
         const user = await sql<{
           id: number; username: string; role: string; credential_hash: string; is_active: number
         }>`
@@ -193,13 +227,16 @@ export function registerAdminRoutes(
           return c.json({ error: 'Invalid credentials' }, 401);
         }
 
+        loginLimiter.reset(limiterKey);
+
         const sessionToken = await createSessionToken(
           { userId: row.id, tenantId, role: row.role },
           opts?.jwtSecret,
         );
 
-        // Set HttpOnly session cookie for standalone mode
-        c.header('Set-Cookie', `session=${sessionToken}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`);
+        // Set HttpOnly session cookie for standalone mode. Secure only on
+        // HTTPS requests so local plain-HTTP dev keeps working.
+        c.header('Set-Cookie', sessionCookieString(sessionToken, isSecureRequest(c)));
 
         return c.json({
           token: sessionToken,
@@ -209,8 +246,68 @@ export function registerAdminRoutes(
         if (!opts?.db) await db.destroy();
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      return c.json({ error: message }, 500);
+      // Log details server-side, never leak internals to the client.
+      console.error('[admin/auth] login failed:', err);
+      return c.json({ error: 'Internal server error' }, 500);
+    }
+  });
+
+  // ---- Auth logout (clears the session cookie) ----
+  // Requires a valid session; the stateless JWT itself stays valid until
+  // expiry (Bearer API clients are unaffected — they don't rely on cookies).
+  adminRouter.post('/auth/logout', async (c) => {
+    c.header('Set-Cookie', clearSessionCookieString(isSecureRequest(c)));
+    return c.json({ success: true });
+  });
+
+  // ---- Auth change-password (session-authenticated) ----
+  adminRouter.post('/auth/change-password', async (c) => {
+    const user = getUser(c);
+    const db = getDb(c);
+
+    let currentPassword: string | undefined;
+    let newPassword: string | undefined;
+    try {
+      const body = await c.req.json<{ current_password?: string; new_password?: string }>();
+      currentPassword = body.current_password;
+      newPassword = body.new_password;
+    } catch {
+      return c.json({ error: 'current_password and new_password are required' }, 400);
+    }
+
+    if (!currentPassword || !newPassword) {
+      return c.json({ error: 'current_password and new_password are required' }, 400);
+    }
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      return c.json(
+        { error: `new password must be at least ${MIN_PASSWORD_LENGTH} characters` },
+        400,
+      );
+    }
+
+    try {
+      const row = await sql<{ credential_hash: string }>`
+        SELECT credential_hash FROM users WHERE id = ${user.userId}
+      `.execute(db);
+      if (row.rows.length === 0) {
+        return c.json({ error: 'Current password is incorrect' }, 401);
+      }
+
+      const valid = await verifyPassword(currentPassword, row.rows[0].credential_hash);
+      if (!valid) {
+        return c.json({ error: 'Current password is incorrect' }, 401);
+      }
+
+      const hash = await hashPassword(newPassword);
+      await sql`
+        UPDATE users SET credential_hash = ${hash} WHERE id = ${user.userId}
+      `.execute(db);
+
+      return c.json({ success: true });
+    } catch (err) {
+      console.error('[admin/auth] change-password failed:', err);
+      return c.json({ error: 'Internal server error' }, 500);
     }
   });
 

@@ -1,5 +1,7 @@
 import type { Client } from '@libsql/client';
-import type { UserRow } from '@sechel-mcp/core';
+import type { Kysely } from 'kysely';
+import { sql } from 'kysely';
+import type { CortexDB, UserRow } from '@sechel-mcp/core';
 import { hashPassword } from './auth.js';
 
 /**
@@ -57,4 +59,51 @@ export async function seedAdmin(
     args: [tenantId],
   });
   return admin.rows[0] as unknown as UserRow | undefined;
+}
+
+/**
+ * Seed the first admin from credentials when no user with that username
+ * exists yet.
+ *
+ * Create-only: unlike `seedAdmin`, it never overwrites an existing
+ * credential_hash, so DB-side password changes survive restarts. Used by
+ * hosts that resolve ADMIN_* from runtime bindings instead of process.env
+ * (e.g. the embedded panel on Cloudflare).
+ */
+export async function seedAdminFromDb(
+  db: Kysely<CortexDB>,
+  tenantId: string,
+  credentials?: { username: string; password: string },
+): Promise<UserRow | undefined> {
+  const adminUsername = credentials?.username;
+  const adminPassword = credentials?.password;
+
+  if (!adminUsername || !adminPassword) return undefined;
+
+  const existing = await sql<{ id: number }>`
+    SELECT id FROM users WHERE tenant_id = ${tenantId} AND username = ${adminUsername}
+  `.execute(db);
+  if (existing.rows.length === 0) {
+    const hash = await hashPassword(adminPassword);
+    await sql`
+      INSERT INTO users (tenant_id, username, role, credential_hash, is_active, created_at)
+      VALUES (${tenantId}, ${adminUsername}, 'admin', ${hash}, 1, datetime('now'))
+    `.execute(db);
+  }
+
+  const regSetting = await sql<{ value: string }>`
+    SELECT value FROM instance_settings WHERE key = 'registration_enabled'
+  `.execute(db);
+  if (regSetting.rows.length === 0) {
+    await sql`
+      INSERT INTO instance_settings (key, value, updated_at)
+      VALUES ('registration_enabled', '0', datetime('now'))
+    `.execute(db);
+  }
+
+  const admin = await sql<UserRow>`
+    SELECT * FROM users WHERE tenant_id = ${tenantId} AND role = 'admin'
+    ORDER BY username ASC LIMIT 1
+  `.execute(db);
+  return admin.rows[0];
 }

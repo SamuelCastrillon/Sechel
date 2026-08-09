@@ -25,22 +25,19 @@ export const EXEMPT_PATHS = [
  * Verifies with verifySessionToken() using the optional secret.
  * Injects the verified payload at `c.set('user', payload)`.
  *
- * Exempts paths in EXEMPT_PATHS (health check and login).
+ * Exempts paths in EXEMPT_PATHS (health check and login). Exemption is an
+ * exact match on the mount-prefix-relative path only — a route such as
+ * `/audit/auth/login` must never become public because it ends with an
+ * exempt suffix.
  */
-export function authMiddleware(jwtSecret?: string): MiddlewareHandler {
+export function authMiddleware(jwtSecret?: string, mountPrefix = '/admin'): MiddlewareHandler {
   return async (c, next) => {
-    // Check exempt paths — compare only the path-relative portion
-    // (the Hono router strips the mount prefix for sub-routers,
-    //  but we match both absolute and relative for safety)
+    // `c.req.path` is the full request path (mount prefix included), so
+    // strip the known mount prefix and compare exactly against the
+    // prefix-relative EXEMPT_PATHS entries.
     const path = c.req.path;
-    // relative path: strip the mount prefix (first segment) to compare
-    // against EXEMPT_PATHS entries that are prefix-relative.
-    // endsWith fallback handles custom prefixes like /api/admin/health
-    // where the relative path after stripping one segment isn't enough.
-    const relative = path.replace(/^\/[^/]+/, '');
-    const isExempt = EXEMPT_PATHS.some(
-      (p) => path === p || path.endsWith(p) || relative === p,
-    );
+    const relative = path.startsWith(mountPrefix) ? path.slice(mountPrefix.length) : path;
+    const isExempt = EXEMPT_PATHS.includes(relative);
 
     if (isExempt) {
       return next();
@@ -48,11 +45,15 @@ export function authMiddleware(jwtSecret?: string): MiddlewareHandler {
 
     // Extract token from Cookie or Authorization header
     let token: string | undefined;
+    let cookieAuth = false;
 
     const cookie = c.req.header('Cookie');
     if (cookie) {
       const match = cookie.match(/(?:^|;\s*)session=([^;]+)/);
-      if (match) token = match[1];
+      if (match) {
+        token = match[1];
+        cookieAuth = true;
+      }
     }
 
     if (!token) {
@@ -64,6 +65,26 @@ export function authMiddleware(jwtSecret?: string): MiddlewareHandler {
 
     if (!token) {
       return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // CSRF defense-in-depth: cookie-authenticated state-changing requests
+    // must be same-origin (browsers always send Origin on cross-site POSTs;
+    // SameSite=Lax alone is not sufficient for POSTs that do not trigger a
+    // top-level navigation). Bearer-authenticated requests are not subject
+    // to CSRF and are left untouched.
+    const isMutating = c.req.method !== 'GET' && c.req.method !== 'HEAD' && c.req.method !== 'OPTIONS';
+    const origin = c.req.header('Origin');
+    if (cookieAuth && isMutating && origin) {
+      try {
+        const requestUrl = new URL(c.req.url);
+        const requestHost = c.req.header('Host') ?? requestUrl.host;
+        const originHost = new URL(origin).host;
+        if (originHost !== requestHost) {
+          return c.json({ error: 'Forbidden' }, 403);
+        }
+      } catch {
+        return c.json({ error: 'Forbidden' }, 403);
+      }
     }
 
     try {

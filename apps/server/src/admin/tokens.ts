@@ -1,17 +1,30 @@
-import { randomBytes, createHash } from 'node:crypto';
 import type { Hono } from 'hono';
 import { sql } from 'kysely';
 import { getUser, getDb, requireRole } from './auth-middleware.js';
+
+const HEX_DIGITS = '0123456789abcdef';
+
+function toHex(bytes: Uint8Array): string {
+  let out = '';
+  for (const b of bytes) {
+    out += HEX_DIGITS[b >> 4] + HEX_DIGITS[b & 15];
+  }
+  return out;
+}
 
 /**
  * Generate a new API token with:
  * - `raw`: 80-char hex string (40 random bytes)
  * - `hash`: SHA-256 hex of the raw token (for storage/lookup)
  * - `prefix`: "sk_" + first 7 chars (for UI display)
+ *
+ * Uses Web Crypto only (no node:crypto) so this module also runs on
+ * Cloudflare Workers without the nodejs_compat compatibility flag.
  */
-export function generateApiToken(): { raw: string; hash: string; prefix: string } {
-  const raw = randomBytes(40).toString('hex');
-  const hash = createHash('sha256').update(raw, 'utf-8').digest('hex');
+export async function generateApiToken(): Promise<{ raw: string; hash: string; prefix: string }> {
+  const raw = toHex(crypto.getRandomValues(new Uint8Array(40)));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+  const hash = toHex(new Uint8Array(digest));
   const prefix = 'sk_' + raw.slice(0, 7);
   return { raw, hash, prefix };
 }
@@ -62,7 +75,7 @@ export function registerTokenRoutes(router: Hono): void {
       // body is optional, default to no description
     }
 
-    const { raw, hash, prefix } = generateApiToken();
+    const { raw, hash, prefix } = await generateApiToken();
 
     const insertResult = await sql<{ id: number }>`
       INSERT INTO user_tokens (tenant_id, user_id, prefix, token_hash, description)
