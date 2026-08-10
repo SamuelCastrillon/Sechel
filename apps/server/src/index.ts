@@ -9,6 +9,7 @@ import { createDb, verifyToken } from '@sechel-mcp/core';
 import { registerAdminRoutes } from './admin.js';
 import type { AdminRoutesOptions } from './admin.js';
 import { seedAdminFromDb } from './admin/seed.js';
+import { apiIconBytes, API_ICON_CONTENT_TYPE } from './assets/api-icon.js';
 
 export { seedAdminFromDb };
 
@@ -50,6 +51,17 @@ export function createApp(opts?: {
   jwtSecret?: string;
 }): Hono<{ Bindings: Env }> {
   const app = new Hono<{ Bindings: Env }>();
+
+  // ---- API favicon ---------------------------------------------------------
+  // Browsers request /favicon.ico automatically; /icon.png is a stable alias
+  // for manual <link rel="icon"> usage. Works on Node, CF Workers and Vercel
+  // because the image is embedded (no asset pipeline, no fs access).
+  const iconHeaders = {
+    'Content-Type': API_ICON_CONTENT_TYPE,
+    'Cache-Control': 'public, max-age=86400',
+  } as const;
+  app.get('/favicon.ico', (c) => c.body(apiIconBytes().buffer as ArrayBuffer, 200, iconHeaders));
+  app.get('/icon.png', (c) => c.body(apiIconBytes().buffer as ArrayBuffer, 200, iconHeaders));
 
   // ---- Admin maintenance routes ------------------------------------------
   registerAdminRoutes(app, opts as AdminRoutesOptions);
