@@ -124,6 +124,147 @@ describe('api-client — tokens', () => {
   });
 });
 
+describe('api-client — 401 refresh flow (PR-1/PR-3)', () => {
+  const ok = (data: unknown) => ({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve(data),
+  });
+  const unauthorized = {
+    ok: false,
+    status: 401,
+    json: () => Promise.resolve({ error: 'Unauthorized' }),
+  };
+
+  it('parallel 401s trigger exactly ONE refresh, then each original request retries successfully', async () => {
+    mockFetch
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValueOnce(ok({ token: 'fresh-access' }))
+      .mockResolvedValueOnce(ok({ users: [{ id: 1, username: 'admin', role: 'admin' }] }))
+      .mockResolvedValueOnce(ok({ registration_enabled: true }))
+      .mockResolvedValueOnce(ok({ tokens: [] }));
+
+    const { listUsers, getSettings, listTokens } = await import('@/lib/api-client');
+    const [users, settings, tokens] = await Promise.all([
+      listUsers(),
+      getSettings(),
+      listTokens(),
+    ]);
+
+    const refreshCalls = mockFetch.mock.calls.filter(
+      ([url]) => url === '/api/admin/auth/refresh',
+    );
+    expect(refreshCalls).toHaveLength(1);
+    expect(refreshCalls[0][1]).toMatchObject({ method: 'POST' });
+    expect(users).toHaveLength(1);
+    expect(settings.registration_enabled).toBe(true);
+    expect(tokens).toEqual([]);
+  });
+
+  it('refresh 401 redirects to login and never re-enters the interceptor (no recursion)', async () => {
+    vi.stubGlobal('window', { location: { href: '' } });
+    try {
+      mockFetch
+        .mockResolvedValueOnce(unauthorized)
+        .mockResolvedValueOnce(unauthorized);
+
+      const { listUsers } = await import('@/lib/api-client');
+      await expect(listUsers()).rejects.toThrow('Session expired');
+
+      expect(
+        mockFetch.mock.calls.filter(([url]) => url === '/api/admin/auth/refresh'),
+      ).toHaveLength(1);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect((globalThis as { window?: { location: { href: string } } }).window).toMatchObject({
+        location: { href: '/admin/login' },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('session revoked server-side → refresh 401 → login redirect; original never retried', async () => {
+    vi.stubGlobal('window', { location: { href: '' } });
+    try {
+      mockFetch
+        .mockResolvedValueOnce(unauthorized)
+        .mockResolvedValueOnce(unauthorized);
+
+      const { getSettings } = await import('@/lib/api-client');
+      await expect(getSettings()).rejects.toThrow('Session expired');
+
+      expect(mockFetch.mock.calls.map(([url]) => url)).toEqual([
+        '/api/admin/settings',
+        '/api/admin/auth/refresh',
+      ]);
+      expect((globalThis as { window?: { location: { href: string } } }).window).toMatchObject({
+        location: { href: '/admin/login' },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('retry 401 after a successful refresh also redirects to login', async () => {
+    vi.stubGlobal('window', { location: { href: '' } });
+    try {
+      mockFetch
+        .mockResolvedValueOnce(unauthorized)
+        .mockResolvedValueOnce(ok({ token: 'fresh-access' }))
+        .mockResolvedValueOnce(unauthorized);
+
+      const { listTokens } = await import('@/lib/api-client');
+      await expect(listTokens()).rejects.toThrow('Session expired');
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect((globalThis as { window?: { location: { href: string } } }).window).toMatchObject({
+        location: { href: '/admin/login' },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('single-flight holds on refresh FAILURE too: N parallel 401s → one refresh, all redirect', async () => {
+    vi.stubGlobal('window', { location: { href: '' } });
+    try {
+      mockFetch
+        .mockResolvedValueOnce(unauthorized)
+        .mockResolvedValueOnce(unauthorized)
+        .mockResolvedValueOnce(unauthorized)
+        .mockResolvedValueOnce(unauthorized);
+
+      const { listUsers, getSettings, listTokens } = await import('@/lib/api-client');
+      await expect(Promise.all([listUsers(), getSettings(), listTokens()])).rejects.toThrow(
+        'Session expired',
+      );
+
+      expect(
+        mockFetch.mock.calls.filter(([url]) => url === '/api/admin/auth/refresh'),
+      ).toHaveLength(1);
+      expect((globalThis as { window?: { location: { href: string } } }).window).toMatchObject({
+        location: { href: '/admin/login' },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('login 401 (bad credentials) does NOT trigger a refresh', async () => {
+    mockFetch.mockResolvedValueOnce(unauthorized);
+
+    const { login } = await import('@/lib/api-client');
+    await expect(login('admin', 'wrong')).rejects.toThrow('Unauthorized');
+
+    expect(
+      mockFetch.mock.calls.filter(([url]) => url === '/api/admin/auth/refresh'),
+    ).toHaveLength(0);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('api-client — settings', () => {
   it('getSettings calls GET /api/admin/settings', async () => {
     mockFetch.mockResolvedValueOnce({

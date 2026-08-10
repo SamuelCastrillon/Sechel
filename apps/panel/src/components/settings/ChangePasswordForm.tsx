@@ -39,10 +39,9 @@ export function ChangePasswordForm() {
         throw new Error(body.error ?? 'Failed to change password');
       }
 
-      setMessage('Password changed successfully');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      // change-password revokes ALL sessions (current included), so every
+      // device must sign back in with the new credential — bounce to login.
+      window.location.href = '/admin/login';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to change password');
     }
