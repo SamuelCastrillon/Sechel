@@ -7,6 +7,11 @@ export default defineConfig({
     include: ['__tests__/**/*.test.ts'],
     // Never silently skip tests via .only — the server suite is large.
     allowOnly: false,
+    // argon2 (64 MB, t=3) dominates beforeAll seeding and change-password
+    // flows; 4 files run in parallel workers, so the default 10 s hook /
+    // test timeouts flake on loaded machines.
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
   },
   resolve: {
     alias: {

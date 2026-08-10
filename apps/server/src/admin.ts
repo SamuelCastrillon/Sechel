@@ -12,6 +12,7 @@ import {
   sessionCookieString,
   refreshCookieString,
   clearSessionCookieString,
+  clearRefreshCookieString,
   isSecureRequest,
 } from './admin/auth.js';
 import { authMiddleware, getDb, getUser } from './admin/auth-middleware.js';
@@ -253,11 +254,23 @@ export function registerAdminRoutes(
     }
   });
 
-  // ---- Auth logout (clears the session cookie) ----
-  // Requires a valid session; the stateless JWT itself stays valid until
-  // expiry (Bearer API clients are unaffected — they don't rely on cookies).
+  // ---- Auth logout (revokes the current session + clears both cookies) ----
+  // Requires a valid session; the session row is revoked server-side (SR-2),
+  // so the access JWT (sid claim) fails the middleware DB check on its next
+  // use — no TTL wait. Bearer API clients that re-authenticate per request
+  // are unaffected (NC-1).
   adminRouter.post('/auth/logout', async (c) => {
-    c.header('Set-Cookie', clearSessionCookieString(isSecureRequest(c)));
+    const user = getUser(c);
+    const db = getDb(c);
+
+    await sql`
+      UPDATE auth_sessions SET revoked_at = datetime('now')
+      WHERE id = ${user.sid} AND tenant_id = ${user.tenantId}
+    `.execute(db);
+
+    const secure = isSecureRequest(c);
+    c.header('Set-Cookie', clearSessionCookieString(secure));
+    c.header('Set-Cookie', clearRefreshCookieString(secure), { append: true });
     return c.json({ success: true });
   });
 
@@ -303,6 +316,15 @@ export function registerAdminRoutes(
       const hash = await hashPassword(newPassword);
       await sql`
         UPDATE users SET credential_hash = ${hash} WHERE id = ${user.userId}
+      `.execute(db);
+
+      // SR-2: password change revokes ALL sessions of the user (current
+      // included) — every device must re-login with the new credential.
+      // The client gets 200 { success: true }; the panel handles the redirect.
+      await sql`
+        UPDATE auth_sessions SET revoked_at = datetime('now')
+        WHERE user_id = ${user.userId} AND tenant_id = ${user.tenantId}
+          AND revoked_at IS NULL
       `.execute(db);
 
       return c.json({ success: true });

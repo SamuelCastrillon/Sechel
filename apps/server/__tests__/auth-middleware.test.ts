@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
-import { SignJWT } from 'jose';
+import { SignJWT, jwtVerify } from 'jose';
 import { unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -133,6 +133,34 @@ async function loginAs(username: string, password: string): Promise<string> {
   }, testEnv);
   expect(res.status).toBe(200);
   return res.headers.get('Set-Cookie') ?? '';
+}
+
+function parseLoginCookies(res: Response): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const cookie of res.headers.getSetCookie()) {
+    const pair = cookie.split(';', 1)[0];
+    const idx = pair.indexOf('=');
+    if (idx > 0) out[pair.slice(0, idx).trim()] = pair.slice(idx + 1).trim();
+  }
+  return out;
+}
+
+/** Login and capture BOTH HttpOnly cookies (session= + refresh=). */
+async function loginFull(username: string, password: string): Promise<Record<string, string>> {
+  const res = await app.request('/admin/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  }, testEnv);
+  expect(res.status).toBe(200);
+  return parseLoginCookies(res);
+}
+
+function cookieHeader(cookies: Record<string, string>): string {
+  const parts: string[] = [];
+  if (cookies.session) parts.push(`session=${cookies.session}`);
+  if (cookies.refresh) parts.push(`refresh=${cookies.refresh}`);
+  return parts.join('; ');
 }
 
 // ---------------------------------------------------------------------------
@@ -315,17 +343,22 @@ describe('Admin API — origin check on cookie-authed mutations', () => {
   });
 
   it('accepts cookie-authed POST from the same origin', async () => {
+    // Fresh session: a successful logout REVOKES the session row (SR-2), so
+    // the shared ADMIN_COOKIE must not be consumed here.
+    const fresh = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
     const res = await app.request('/admin/auth/logout', {
       method: 'POST',
-      headers: { Cookie: ADMIN_COOKIE, Origin: 'http://localhost' },
+      headers: { Cookie: cookieHeader(fresh), Origin: 'http://localhost' },
     });
     expect(res.status).toBe(200);
   });
 
   it('leaves Bearer-authed mutations unchecked (not CSRF-able)', async () => {
+    // Fresh session: logout now revokes the session row server-side (SR-2).
+    const fresh = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
     const res = await app.request('/admin/auth/logout', {
       method: 'POST',
-      headers: { ...bearerHeaders(ADMIN_TOKEN), Origin: 'https://evil.example' },
+      headers: { ...bearerHeaders(fresh.session), Origin: 'https://evil.example' },
     });
     expect(res.status).toBe(200);
   });
@@ -344,24 +377,239 @@ describe('Admin API — logout', () => {
     expect(res.status).toBe(401);
   });
 
-  it('clears the session cookie (Max-Age=0)', async () => {
+  it('revokes the session row and clears BOTH cookies (Max-Age=0)', async () => {
+    // Fresh session: logout consumes it (revoked_at set server-side).
+    const fresh = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
+    expect(fresh.session).toBeTruthy();
+    expect(fresh.refresh).toBeTruthy();
+
     const res = await app.request('/admin/auth/logout', {
       method: 'POST',
-      headers: { Cookie: ADMIN_COOKIE },
+      headers: { Cookie: cookieHeader(fresh) },
     });
     expect(res.status).toBe(200);
-    const setCookie = res.headers.get('Set-Cookie');
-    expect(setCookie).toContain('session=');
-    expect(setCookie).toContain('Max-Age=0');
+    expect(await res.json()).toEqual({ success: true });
+
+    // Both the session= and refresh= cookies are cleared (Max-Age=0).
+    const cleared = res.headers.getSetCookie();
+    expect(cleared.length).toBe(2);
+    const sessionClear = cleared.find((c) => c.startsWith('session='));
+    const refreshClear = cleared.find((c) => c.startsWith('refresh='));
+    expect(sessionClear).toBeTruthy();
+    expect(refreshClear).toBeTruthy();
+    for (const c of cleared) {
+      expect(c).toContain('HttpOnly');
+      expect(c).toContain('Max-Age=0');
+      expect(c).toContain('SameSite=Lax');
+      expect(c).not.toContain('Secure'); // plain-HTTP test request
+    }
+  });
+});
+
+describe('Admin API — revocation triggers (SR-2)', () => {
+  // Replaces the pre-U3 stateless-limitation documentation test. Every
+  // trigger (logout, deactivate, demote, password change, device revoke)
+  // must kill the affected sessions server-side: the access JWT is rejected
+  // on the NEXT request (no TTL wait), the refresh token stops working at
+  // /auth/refresh, and other devices keep working (isolation).
+  // This describe runs BEFORE the change-password describe so the shared
+  // ADMIN_PASSWORD and the beforeAll ADMIN_TOKEN session stay untouched.
+
+  async function memberId(): Promise<number> {
+    const row = await sql<{ id: number }>`
+      SELECT id FROM users WHERE tenant_id = ${TENANT} AND username = ${MEMBER_USERNAME}
+    `.execute(db);
+    return Number(row.rows[0].id);
+  }
+
+  async function createUser(username: string, role: string, actor: Record<string, string>): Promise<number> {
+    const res = await app.request('/admin/users', {
+      method: 'POST',
+      headers: { Cookie: cookieHeader(actor), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password: 'temp-pass-1234', role }),
+    });
+    expect(res.status).toBe(201);
+    return Number((await res.json() as Record<string, unknown>).id);
+  }
+
+  it('logout revokes the session row: next request 401, refresh dead, other device isolated', async () => {
+    const deviceA = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
+    const deviceB = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
+
+    const logout = await app.request('/admin/auth/logout', {
+      method: 'POST',
+      headers: { Cookie: cookieHeader(deviceA) },
+    });
+    expect(logout.status).toBe(200);
+
+    // The revoked row: revoked_at set, row kept for lineage audit (AS-2).
+    const { payload } = await jwtVerify(deviceA.session, new TextEncoder().encode(TEST_JWT_SECRET));
+    const row = await sql<{ revoked_at: string | null }>`
+      SELECT revoked_at FROM auth_sessions WHERE id = ${payload.sid as string}
+    `.execute(db);
+    expect(row.rows[0].revoked_at).not.toBeNull();
+
+    const afterA = await app.request('/admin/users', { headers: { Cookie: cookieHeader(deviceA) } });
+    expect(afterA.status).toBe(401);
+    const refreshA = await app.request('/admin/auth/refresh', {
+      method: 'POST',
+      headers: { Cookie: `refresh=${deviceA.refresh}` },
+    });
+    expect(refreshA.status).toBe(401);
+
+    // Isolation: the other device keeps working.
+    const afterB = await app.request('/admin/users', { headers: { Cookie: cookieHeader(deviceB) } });
+    expect(afterB.status).toBe(200);
   });
 
-  it('cannot revoke the stateless JWT server-side (documented limitation)', async () => {
-    // Logout revokes the BROWSER session by clearing the cookie (Max-Age=0).
-    // The stateless JWT itself stays valid until expiry, so a replayed cookie
-    // still verifies — full server-side revocation needs a session store and
-    // is tracked separately (suspect JD-S-001, out of round scope).
-    const res = await app.request('/admin/users', { headers: { Cookie: ADMIN_COOKIE } });
-    expect(res.status).toBe(200);
+  // argon2 (64 MB, t=3) dominates these tests: user creation hashes + login
+  // verifications. Explicit timeouts so loaded CI machines do not flake.
+
+  it('deactivate (toggle-active) revokes ALL sessions of the target user', async () => {
+    const admin = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
+    const member = await loginFull(MEMBER_USERNAME, MEMBER_PASSWORD);
+    const id = await memberId();
+
+    const toggle = await app.request(`/admin/users/${id}/toggle-active`, {
+      method: 'POST',
+      headers: { Cookie: cookieHeader(admin) },
+    });
+    expect(toggle.status).toBe(200);
+    expect((await toggle.json() as Record<string, unknown>).is_active).toBe(0);
+
+    try {
+      // The member's access JWT is now rejected…
+      const after = await app.request('/admin/users', { headers: { Cookie: cookieHeader(member) } });
+      expect(after.status).toBe(401);
+      // …and their refresh token is dead too.
+      const refresh = await app.request('/admin/auth/refresh', {
+        method: 'POST',
+        headers: { Cookie: `refresh=${member.refresh}` },
+      });
+      expect(refresh.status).toBe(401);
+      // Isolation: the admin actor keeps working.
+      const adminAfter = await app.request('/admin/users', { headers: { Cookie: cookieHeader(admin) } });
+      expect(adminAfter.status).toBe(200);
+    } finally {
+      // Re-activate so later suites see the member active again.
+      await app.request(`/admin/users/${id}/toggle-active`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(admin) },
+      });
+    }
+  }, 30_000);
+
+  it('role demotion (PATCH role) revokes ALL sessions of the target user', async () => {
+    const admin = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
+    const targetId = await createUser('mw-demote', 'admin', admin);
+    const target = await loginFull('mw-demote', 'temp-pass-1234');
+
+    const patch = await app.request(`/admin/users/${targetId}`, {
+      method: 'PATCH',
+      headers: { Cookie: cookieHeader(admin), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'member' }),
+    });
+    expect(patch.status).toBe(200);
+    expect((await patch.json() as Record<string, unknown>).role).toBe('member');
+
+    const after = await app.request('/admin/users', { headers: { Cookie: cookieHeader(target) } });
+    expect(after.status).toBe(401);
+    const refresh = await app.request('/admin/auth/refresh', {
+      method: 'POST',
+      headers: { Cookie: `refresh=${target.refresh}` },
+    });
+    expect(refresh.status).toBe(401);
+    const adminAfter = await app.request('/admin/users', { headers: { Cookie: cookieHeader(admin) } });
+    expect(adminAfter.status).toBe(200);
+  }, 30_000);
+
+  it('password change revokes ALL sessions of the user — current included', async () => {
+    const admin = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
+    // Dedicated user: the shared ADMIN_PASSWORD must stay untouched so the
+    // change-password describe below keeps working.
+    const userId = await createUser('mw-pwuser', 'member', admin);
+    const sessA = await loginFull('mw-pwuser', 'temp-pass-1234');
+    const sessB = await loginFull('mw-pwuser', 'temp-pass-1234');
+
+    const change = await app.request('/admin/auth/change-password', {
+      method: 'POST',
+      headers: { Cookie: cookieHeader(sessA), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password: 'temp-pass-1234', new_password: 'pw-pass-5678' }),
+    });
+    expect(change.status).toBe(200);
+    expect(await change.json()).toEqual({ success: true });
+
+    // Current session AND the other device are both dead.
+    const afterA = await app.request('/admin/users', { headers: { Cookie: cookieHeader(sessA) } });
+    expect(afterA.status).toBe(401);
+    const afterB = await app.request('/admin/users', { headers: { Cookie: cookieHeader(sessB) } });
+    expect(afterB.status).toBe(401);
+    // Both refresh tokens are dead too.
+    const refreshA = await app.request('/admin/auth/refresh', {
+      method: 'POST',
+      headers: { Cookie: `refresh=${sessA.refresh}` },
+    });
+    expect(refreshA.status).toBe(401);
+    const refreshB = await app.request('/admin/auth/refresh', {
+      method: 'POST',
+      headers: { Cookie: `refresh=${sessB.refresh}` },
+    });
+    expect(refreshB.status).toBe(401);
+
+    // Isolation: the admin actor keeps working.
+    const adminAfter = await app.request('/admin/users', { headers: { Cookie: cookieHeader(admin) } });
+    expect(adminAfter.status).toBe(200);
+
+    // Old credential rejected; the new one logs in (client must re-login).
+    const oldLogin = await app.request('/admin/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'mw-pwuser', password: 'temp-pass-1234' }),
+    }, testEnv);
+    expect(oldLogin.status).toBe(401);
+    const newLogin = await app.request('/admin/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'mw-pwuser', password: 'pw-pass-5678' }),
+    }, testEnv);
+    expect(newLogin.status).toBe(200);
+
+    // DB: both pre-change sessions are revoked (current included); the
+    // successful re-login above created a fresh active session.
+    const rows = await sql<{ id: string; revoked_at: string | null }>`
+      SELECT id, revoked_at FROM auth_sessions
+      WHERE user_id = ${userId} AND tenant_id = ${TENANT}
+      ORDER BY created_at, id
+    `.execute(db);
+    expect(rows.rows.length).toBe(3); // sessA + sessB + fresh re-login
+    expect(rows.rows[0].revoked_at).not.toBeNull();
+    expect(rows.rows[1].revoked_at).not.toBeNull();
+    expect(rows.rows[2].revoked_at).toBeNull(); // the fresh re-login session
+  }, 30_000);
+
+  it('device revoke (DELETE /auth/sessions/:id) kills only that device', async () => {
+    const admin = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
+    const deviceA = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
+    const deviceB = await loginFull(ADMIN_USERNAME, ADMIN_PASSWORD);
+
+    const { payload } = await jwtVerify(deviceA.session, new TextEncoder().encode(TEST_JWT_SECRET));
+    const sidA = payload.sid as string;
+
+    const del = await app.request(`/admin/auth/sessions/${sidA}`, {
+      method: 'DELETE',
+      headers: { Cookie: cookieHeader(admin) },
+    });
+    expect(del.status).toBe(204);
+
+    const afterA = await app.request('/admin/users', { headers: { Cookie: cookieHeader(deviceA) } });
+    expect(afterA.status).toBe(401);
+    const refreshA = await app.request('/admin/auth/refresh', {
+      method: 'POST',
+      headers: { Cookie: `refresh=${deviceA.refresh}` },
+    });
+    expect(refreshA.status).toBe(401);
+    const afterB = await app.request('/admin/users', { headers: { Cookie: cookieHeader(deviceB) } });
+    expect(afterB.status).toBe(200);
   });
 });
 

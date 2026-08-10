@@ -8,7 +8,7 @@ import {
   refreshCookieString,
   isSecureRequest,
 } from './auth.js';
-import { getDb } from './auth-middleware.js';
+import { getDb, getUser, requireRole } from './auth-middleware.js';
 import { createRateLimiter, clientIp } from './rate-limit.js';
 
 /**
@@ -181,5 +181,61 @@ export function registerSessionRoutes(router: Hono, jwtSecret?: string): void {
       console.error('[admin/sessions] refresh failed:', err);
       return c.json({ error: 'Internal server error' }, 500);
     }
+  });
+
+  // ---- Sessions list + device revoke (UI-1/2, SR-2) ----
+  // Admin-only. These routes sit on the shared admin router, so requireRole
+  // must be applied per-route here: registerSessionRoutes runs BEFORE
+  // registerUserRoutes, whose blanket requireRole('admin') does not cover
+  // routes registered earlier. (POST /auth/refresh above stays exempt.)
+
+  router.get('/auth/sessions', requireRole('admin'), async (c) => {
+    const db = getDb(c);
+    const { tenantId } = getUser(c);
+
+    // Public shape only: id + device metadata + timestamps + computed status.
+    // NEVER expose refresh_hash / prev_hash / lineage_id (AS-1/UI-1).
+    const result = await sql<{
+      id: string;
+      device_name: string | null;
+      user_agent: string | null;
+      ip: string | null;
+      created_at: string;
+      last_used_at: string;
+      expires_at: string;
+      revoked_at: string | null;
+      status: string;
+    }>`
+      SELECT id, device_name, user_agent, ip, created_at, last_used_at, expires_at, revoked_at,
+             CASE
+               WHEN revoked_at IS NOT NULL THEN 'revoked'
+               WHEN expires_at <= datetime('now') THEN 'expired'
+               ELSE 'active'
+             END AS status
+      FROM auth_sessions
+      WHERE tenant_id = ${tenantId}
+      ORDER BY last_used_at DESC
+    `.execute(db);
+
+    return c.json({ sessions: result.rows });
+  });
+
+  router.delete('/auth/sessions/:id', requireRole('admin'), async (c) => {
+    const db = getDb(c);
+    const { tenantId } = getUser(c);
+    const id = c.req.param('id');
+
+    // Soft delete (AS-2): set revoked_at, keep the row for lineage audit.
+    // Tenant-scoped: a row outside the tenant behaves like a missing row
+    // (404), so operators cannot probe other tenants' session ids.
+    const result = await sql`
+      UPDATE auth_sessions SET revoked_at = datetime('now')
+      WHERE id = ${id} AND tenant_id = ${tenantId}
+    `.execute(db);
+
+    if (Number(result.numAffectedRows ?? 0) === 0) {
+      return c.json({ error: 'Session not found' }, 404);
+    }
+    return c.body(null, 204);
   });
 }
