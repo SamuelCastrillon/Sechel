@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
+import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { CortexDB } from '@sechel-mcp/core';
 import { verifySessionToken } from './auth.js';
@@ -7,11 +8,15 @@ import { verifySessionToken } from './auth.js';
  * Paths that are exempt from JWT authentication.
  * These must match the mounted prefix-relative paths
  * (e.g. '/health' not '/admin/health').
+ *
+ * /auth/refresh is exempt by design (RT-1): the refresh endpoint authenticates
+ * via the refresh= cookie / body refresh_token, not the access JWT.
  */
 export const EXEMPT_PATHS = [
   '/health',
   '/auth/login',
   '/auth/register',
+  '/auth/refresh',
   '/public/registration-enabled',
 ];
 
@@ -89,7 +94,41 @@ export function authMiddleware(jwtSecret?: string, mountPrefix = '/admin'): Midd
 
     try {
       const payload = await verifySessionToken(token, jwtSecret);
-      c.set('user', payload);
+
+      // Per-request DB check (SR-1): the sid claim must resolve to a live
+      // session row — not revoked, not expired — and the user must still be
+      // active. Role comes from the DB (not the JWT claim) so demotions and
+      // deactivations apply immediately, with no TTL wait. The db-setter
+      // middleware runs before authMiddleware, so getDb(c) is available here.
+      const db = getDb(c);
+      if (!db) {
+        return c.json({ error: 'Unauthorized' }, 401);
+      }
+
+      const session = await sql<{ id: string; role: string }>`
+        SELECT s.id, u.role
+        FROM auth_sessions s
+        JOIN users u ON u.id = s.user_id
+        WHERE s.id = ${payload.sid}
+          AND s.tenant_id = ${payload.tenantId}
+          AND s.revoked_at IS NULL
+          AND s.expires_at > datetime('now')
+          AND u.is_active = 1
+        LIMIT 1
+      `.execute(db);
+
+      // Missing / revoked / expired / inactive all fold into the same 401 as
+      // an invalid token — no session-state leak (design decision 5).
+      if (session.rows.length === 0) {
+        return c.json({ error: 'Unauthorized' }, 401);
+      }
+
+      c.set('user', {
+        userId: payload.userId,
+        tenantId: payload.tenantId,
+        role: session.rows[0].role,
+        sid: payload.sid,
+      });
       await next();
     } catch {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -101,8 +140,13 @@ export function authMiddleware(jwtSecret?: string, mountPrefix = '/admin'): Midd
 // The `user` and `db` context variables are set by middleware and
 // read by route handlers. Use these accessors instead of raw c.get().
 
-export function getUser(c: { get: (key: string) => unknown }): { userId: number; tenantId: string; role: string } {
-  return c.get('user') as { userId: number; tenantId: string; role: string };
+export function getUser(c: { get: (key: string) => unknown }): {
+  userId: number;
+  tenantId: string;
+  role: string;
+  sid: string;
+} {
+  return c.get('user') as { userId: number; tenantId: string; role: string; sid: string };
 }
 
 export function getDb(c: { get: (key: string) => unknown }): Kysely<CortexDB> {

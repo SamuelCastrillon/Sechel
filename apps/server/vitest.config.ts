@@ -5,6 +5,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['__tests__/**/*.test.ts'],
+    // Never silently skip tests via .only — the server suite is large.
+    allowOnly: false,
   },
   resolve: {
     alias: {
