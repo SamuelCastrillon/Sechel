@@ -36,10 +36,11 @@ export async function fetchAdminSessions(
 /**
  * SSR data loader for /admin/sessions. Uses the access token the middleware
  * verified/refreshed for this navigation (locals.sessionToken, set by
- * guardAdminRequest) when present — after a middleware refresh the browser
- * cookie is one rotation behind: it fails the embedded server's DB join, and
- * re-refreshing here would replay the old refresh cookie into the 60s reuse
- * grace (401). Falls back to the request cookie for direct loads.
+ * guardAdminRequest) when present. The stashed token is the FRESH one, so the
+ * loader never re-refreshes with the browser's rotated-out refresh cookie:
+ * replaying a rotated-out hash through /auth/refresh would hit the 60s reuse
+ * grace (401) or, past the grace, revoke the whole lineage. Falls back to the
+ * request cookie for direct loads.
  */
 export async function loadAdminSessions(
   cookieHeader: string | null,
