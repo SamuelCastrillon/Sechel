@@ -37,8 +37,8 @@ describe('migration — schema smoke', () => {
     const { runMigrations } = await import('@/modules/core/db/migrations');
     await runMigrations(client); // second pass
     const res = await client.execute({ sql: `SELECT version FROM _migrations` });
-    // Expect 2 applied migrations (0001_init + 0002_auth)
-    expect(res.rows.length).toBe(2);
+    // Expect 3 applied migrations (0001_init + 0002_auth + 0003_auth_sessions)
+    expect(res.rows.length).toBe(3);
   });
 
   it('seeds an admin account via idempotent bootstrap', async () => {
