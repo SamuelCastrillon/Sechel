@@ -101,28 +101,28 @@ describe('admin page guard — middleware refresh (PR-2)', () => {
   it('valid access cookie → page renders, no refresh call', async () => {
     const { sessionValue } = await loginCookies();
     const cookiesSet: Array<[string, string]> = [];
+    const context = fakeContext(`session=${sessionValue}`, cookiesSet) as never;
     const next = vi.fn(async () => new Response('<html>admin</html>', { status: 200 }));
 
-    const res = await guardAdminRequest(
-      fakeContext(`session=${sessionValue}`, cookiesSet) as never,
-      next,
-    );
+    const res = await guardAdminRequest(context, next);
 
     expect(res.status).toBe(200);
     expect(next).toHaveBeenCalledTimes(1);
     expect(cookiesSet).toHaveLength(0);
+
+    // The verified access token is stashed for SSR data fetches (U5).
+    const locals = (context as { locals: Record<string, unknown> }).locals;
+    expect(locals.sessionToken).toBe(sessionValue);
   });
 
   it('expired access + valid refresh → refresh happens, rotated cookies forwarded, page renders', async () => {
     const { refreshValue } = await loginCookies();
     const expired = await expiredAccessToken();
     const cookiesSet: Array<[string, string]> = [];
+    const context = fakeContext(`session=${expired}; refresh=${refreshValue}`, cookiesSet) as never;
     const next = vi.fn(async () => new Response('<html>admin</html>', { status: 200 }));
 
-    const res = await guardAdminRequest(
-      fakeContext(`session=${expired}; refresh=${refreshValue}`, cookiesSet) as never,
-      next,
-    );
+    const res = await guardAdminRequest(context, next);
 
     expect(res.status).toBe(200);
     expect(next).toHaveBeenCalledTimes(1);
@@ -143,6 +143,22 @@ describe('admin page guard — middleware refresh (PR-2)', () => {
     expect(typeof payload.sid).toBe('string');
     // Rotation: the refresh cookie value changed vs the one from login.
     expect(refresh![1]).not.toBe(refreshValue);
+
+    // U5: the middleware stashes the refreshed access token in locals so pages
+    // can SSR-fetch through the embedded server. The browser cookie is still
+    // one rotation behind — only the stashed token passes the DB join.
+    const locals = (context as { locals: Record<string, unknown> }).locals;
+    expect(typeof locals.sessionToken).toBe('string');
+    expect(locals.sessionToken).not.toBe(expired);
+    const ssr = await handleApiRequest(
+      new Request('http://localhost/api/admin/auth/sessions', {
+        headers: { Cookie: `session=${locals.sessionToken as string}` },
+      }),
+      TEST_ENV,
+    );
+    expect(ssr.status).toBe(200);
+    const body = (await ssr.json()) as { sessions: unknown[] };
+    expect(Array.isArray(body.sessions)).toBe(true);
   });
 
   it('revoked session → refresh 401 → redirect to login, page not rendered', async () => {

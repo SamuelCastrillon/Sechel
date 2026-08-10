@@ -59,7 +59,8 @@ export async function verifySessionToken(
     const userId = payload.userId as number | undefined;
     const role = payload.role as string | undefined;
     if (typeof userId !== 'number' || typeof role !== 'string') return null;
-    return { userId, role };
+    const sid = payload.sid as string | undefined;
+    return { userId, role, sid: typeof sid === 'string' ? sid : undefined };
   } catch {
     return null;
   }
@@ -169,9 +170,11 @@ export async function guardAdminRequest(
     const secret = runtime?.env?.JWT_SECRET;
 
     let payload: SessionPayload | null = null;
+    let accessToken: string | null = null;
     const sessionToken = parseSessionCookie(cookieHeader);
     if (sessionToken) {
       payload = await verifySessionToken(sessionToken, secret);
+      if (payload) accessToken = sessionToken;
     }
 
     if (!payload) {
@@ -187,6 +190,7 @@ export async function guardAdminRequest(
           if (eq <= 0) continue;
           const name = raw.slice(0, eq).trim();
           const value = raw.slice(eq + 1).split(';')[0].trim();
+          if (name === SESSION_COOKIE_NAME) accessToken = value;
           if (name !== SESSION_COOKIE_NAME && name !== REFRESH_COOKIE_NAME) continue;
           context.cookies.set(name, value, {
             path: '/',
@@ -203,6 +207,13 @@ export async function guardAdminRequest(
     if (!payload) {
       return context.redirect('/admin/login');
     }
+
+    // Expose the verified access token to pages that SSR-fetch through the
+    // embedded server (e.g. /admin/sessions). After a middleware refresh the
+    // browser cookie is one rotation behind — it fails the embedded server's
+    // DB join, and re-refreshing would replay the old refresh cookie into the
+    // 60s reuse grace. The stashed token authenticates the SSR fetch directly.
+    (context.locals as Record<string, unknown>).sessionToken = accessToken;
   }
 
   return next();

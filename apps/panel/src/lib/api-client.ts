@@ -1,4 +1,4 @@
-import type { ActionResult, User, ApiToken, InstanceSettings } from './types';
+import type { ActionResult, User, ApiToken, AdminSession, InstanceSettings } from './types';
 
 const API_BASE = '/api/admin';
 const LOGIN_PATH = '/admin/login';
@@ -77,6 +77,11 @@ async function request<T>(
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(body.error ?? `Request failed: ${res.status}`);
+  }
+
+  // 204 (e.g. DELETE /auth/sessions/:id) has no JSON body — nothing to parse.
+  if (res.status === 204) {
+    return undefined as T;
   }
 
   return res.json();
@@ -163,6 +168,19 @@ export async function createToken(): Promise<{ token: ApiToken; raw: string }> {
 
 export async function revokeToken(tokenId: number): Promise<void> {
   return request(`/tokens/${tokenId}`, {
+    method: 'DELETE',
+  });
+}
+
+// ── Sessions (UI-1/UI-2) ──
+
+export async function listSessions(): Promise<AdminSession[]> {
+  const data = await request<{ sessions: AdminSession[] }>('/auth/sessions');
+  return data.sessions;
+}
+
+export async function revokeSession(sessionId: string): Promise<void> {
+  await request(`/auth/sessions/${sessionId}`, {
     method: 'DELETE',
   });
 }
